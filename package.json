@@ -1,0 +1,22 @@
+{
+	"name": "scriptorium",
+	"version": "0.1.0",
+	"description": "Scriptorium — scripture references, app handoffs, previews, and vault study workflows for Obsidian.",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"test": "vitest run"
+	},
+	"keywords": ["obsidian", "obsidian-plugin", "bible"],
+	"author": "",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^20.11.0",
+		"builtin-modules": "^4.0.0",
+		"esbuild": "^0.24.0",
+		"obsidian": "^1.6.0",
+		"typescript": "^5.5.0",
+		"vitest": "^2.1.0"
+	}
+}

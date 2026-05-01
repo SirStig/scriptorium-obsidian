@@ -1,0 +1,10 @@
+{
+	"id": "scriptorium",
+	"name": "Scriptorium",
+	"version": "0.1.0",
+	"minAppVersion": "1.6.0",
+	"description": "Scriptorium: scripture references, fuzzy autocomplete, app handoffs, reading-mode previews, hub notes, and Greek/Strong helpers.",
+	"author": "",
+	"isDesktopOnly": false,
+	"css": "styles.css"
+}

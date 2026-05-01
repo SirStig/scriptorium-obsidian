@@ -1,0 +1,52 @@
+.scriptorium-scripture-ref {
+	border-bottom: 1px dashed var(--text-accent);
+}
+
+.scriptorium-ref-preview {
+	position: relative;
+	display: inline;
+}
+
+.scriptorium-ref-pop {
+	position: absolute;
+	z-index: 50;
+	max-width: 28rem;
+	padding: 0.5rem 0.65rem;
+	margin-top: 0.25rem;
+	font-size: var(--font-ui-smaller);
+	line-height: 1.35;
+	color: var(--text-normal);
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	box-shadow: var(--shadow-s);
+}
+
+.scriptorium-strong {
+	font-variant-numeric: tabular-nums;
+}
+
+.scriptorium-passage-block {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: 0.5rem 0.65rem;
+	margin: 0.5rem 0;
+	background: var(--background-secondary);
+}
+
+.scriptorium-passage-title {
+	font-weight: 600;
+	margin-bottom: 0.35rem;
+}
+
+.scriptorium-passage-view .scriptorium-passage-help {
+	font-size: var(--font-ui-smaller);
+	margin-bottom: 0.5rem;
+}
+
+.scriptorium-callout-enriched {
+	padding: 0.35rem 0.5rem;
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
