@@ -5,7 +5,10 @@ import { inlineRefRegex } from "../reference/regex";
 import { toNumericOsisString } from "../reference/osis";
 import { linkRefsInMarkdown } from "../vault/link-refs";
 import { ensureHubNote } from "../vault/hub";
+import { closeActiveRefPopover } from "./ref-popover";
 import { buildRefMenu } from "./ref-menu";
+import { lookupCrossRefs } from "../study/cross-refs-data";
+import { isTouchPrimary } from "../util/platform";
 import type { ParsedReference } from "../reference/types";
 import type ScriptoriumPlugin from "../main";
 
@@ -25,9 +28,12 @@ export class SelectionBubble {
 	attach(): void {
 		const onSel = (): void => {
 			window.clearTimeout(this.timer);
-			this.timer = window.setTimeout(() => this.refresh(), 80);
+			// Touch text-selection settles slower than mouse drag — give iOS
+			// time to finalize the range and lift the loupe before we measure
+			// the rect / position the bubble.
+			this.timer = window.setTimeout(() => this.refresh(), 180);
 		};
-		const onMouseDown = (e: MouseEvent): void => {
+		const onPointerDown = (e: PointerEvent): void => {
 			if (this.el && !this.el.contains(e.target as Node)) {
 				if ((e.target as Element).closest?.(".menu")) return;
 				this.hide();
@@ -36,12 +42,18 @@ export class SelectionBubble {
 		const onKey = (e: KeyboardEvent): void => {
 			if (e.key === "Escape") this.hide();
 		};
+		const onCtx = (): void => {
+			closeActiveRefPopover();
+			this.hide();
+		};
 		document.addEventListener("selectionchange", onSel);
-		document.addEventListener("mousedown", onMouseDown, true);
+		document.addEventListener("pointerdown", onPointerDown, true);
 		document.addEventListener("keydown", onKey);
+		document.addEventListener("contextmenu", onCtx, true);
 		this.cleanups.push(() => document.removeEventListener("selectionchange", onSel));
-		this.cleanups.push(() => document.removeEventListener("mousedown", onMouseDown, true));
+		this.cleanups.push(() => document.removeEventListener("pointerdown", onPointerDown, true));
 		this.cleanups.push(() => document.removeEventListener("keydown", onKey));
+		this.cleanups.push(() => document.removeEventListener("contextmenu", onCtx, true));
 	}
 
 	detach(): void {
@@ -99,6 +111,7 @@ export class SelectionBubble {
 	}
 
 	private show(rect: DOMRect, parsed: ParsedReference, matchedText: string): void {
+		closeActiveRefPopover();
 		this.hide();
 		const el = document.createElement("div");
 		el.className = "scriptorium-selection-bubble";
@@ -136,7 +149,8 @@ export class SelectionBubble {
 				this.plugin.app,
 				this.plugin.settings.hubFolder,
 				this.plugin.settings.hubPerChapter,
-				seg
+				seg,
+				{ allowNetwork: this.plugin.settings.allowNetwork }
 			).then((f) => this.plugin.app.workspace.openLinkText(f.path, "", true));
 		});
 
@@ -180,14 +194,50 @@ export class SelectionBubble {
 			menu.showAtPosition({ x: r.left, y: r.bottom + 4 });
 		});
 
+		// Cross-reference preview chip — first parallel from bundled/downloaded data
+		const verseKey = toNumericOsisString([seg]);
+		const xrefs = lookupCrossRefs(verseKey, 1);
+		if (xrefs.length > 0) {
+			const previewParsed = parseReference(xrefs[0]!);
+			if (previewParsed?.segments[0]) {
+				const sep = document.createElement("span");
+				sep.className = "scriptorium-selection-sep";
+				sep.setAttr("aria-hidden", "true");
+				el.appendChild(sep);
+
+				const chip = document.createElement("button");
+				chip.className = "scriptorium-selection-chip";
+				chip.title = `See parallel: ${formatReferenceHuman(previewParsed.segments)}`;
+				chip.textContent = `→ ${formatReferenceHuman(previewParsed.segments)}`;
+				chip.addEventListener("click", (ev) => {
+					ev.preventDefault();
+					ev.stopPropagation();
+					this.hide();
+					this.plugin.openParsed(previewParsed);
+				});
+				el.appendChild(chip);
+			}
+		}
+
 		document.body.appendChild(el);
 		this.el = el;
 
-		// Position: prefer above the selection rect; fall back to below if no room.
+		// Position: on desktop prefer above the selection; on touch prefer below
+		// since iOS / Android render their native copy/lookup toolbar above the
+		// selection by default.
 		const margin = 6;
 		const er = el.getBoundingClientRect();
-		let top = rect.top - er.height - margin;
-		if (top < margin) top = rect.bottom + margin;
+		const preferBelow = isTouchPrimary();
+		let top: number;
+		if (preferBelow) {
+			top = rect.bottom + margin;
+			if (top + er.height > window.innerHeight - margin) {
+				top = Math.max(margin, rect.top - er.height - margin);
+			}
+		} else {
+			top = rect.top - er.height - margin;
+			if (top < margin) top = rect.bottom + margin;
+		}
 		let left = rect.left + rect.width / 2 - er.width / 2;
 		if (left < margin) left = margin;
 		if (left + er.width > window.innerWidth - margin) {

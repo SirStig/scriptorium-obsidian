@@ -1,4 +1,4 @@
-import { Menu, TFile, type MarkdownPostProcessorContext } from "obsidian";
+import { Menu, Notice, TFile, type MarkdownPostProcessorContext } from "obsidian";
 import { parseReference } from "../reference/parser";
 import { inlineRefRegex } from "../reference/regex";
 import { findStrongsTokens, formatStrongsUrl } from "../study/strongs";
@@ -6,6 +6,7 @@ import { lookupStrongs } from "../study/strongs-data";
 import { attachRefPopover } from "../ui/ref-popover";
 import { buildRefMenu } from "../ui/ref-menu";
 import { sectionClassFor } from "../ui/section-styles";
+import { isTouchPrimary } from "../util/platform";
 import type ScriptoriumPlugin from "../main";
 
 function mergeEvents(
@@ -81,26 +82,34 @@ function wrapTextNode(node: Text, plugin: ScriptoriumPlugin): void {
 			const a = document.createElement("a");
 			a.textContent = e.payload;
 			a.href = "#";
-			a.className = "internal-link scriptorium-ref-anchor";
+			a.className = "scriptorium-ref-anchor";
 			a.setAttribute("aria-label", `Scripture reference ${e.payload}`);
+			const activateReading = (): void => {
+				plugin.noteReadingPassageRef(parsed);
+			};
 			a.addEventListener("click", (ev) => {
 				ev.preventDefault();
+				activateReading();
 				if (ev.shiftKey) {
 					plugin.openParsed(parsed);
 					return;
 				}
+				if (isTouchPrimary()) return;
 				const menu = new Menu();
 				buildRefMenu(menu, { plugin, parsed, matchedText: e.payload });
 				menu.showAtMouseEvent(ev);
 			});
 			a.addEventListener("contextmenu", (ev) => {
 				ev.preventDefault();
+				activateReading();
 				const menu = new Menu();
 				buildRefMenu(menu, { plugin, parsed, matchedText: e.payload });
 				menu.showAtMouseEvent(ev);
 			});
 			span.appendChild(a);
-			attachRefPopover(plugin, a, seg, parsed, e.payload);
+			attachRefPopover(plugin, a, seg, parsed, e.payload, {
+				onReadingActivate: activateReading,
+			});
 			frag.appendChild(span);
 		} else {
 			const kind = e.payload[0] === "G" ? "G" : "H";
@@ -114,12 +123,21 @@ function wrapTextNode(node: Text, plugin: ScriptoriumPlugin): void {
 				a.title = `${entry.lemma} (${entry.translit}) — ${entry.gloss}`;
 				a.setAttribute("aria-label", `${e.payload}: ${entry.lemma} ${entry.translit} — ${entry.gloss}`);
 			}
-			a.addEventListener("click", (ev) => {
-				ev.preventDefault();
+			const openLexicon = (): void => {
 				window.open(
 					formatStrongsUrl(kind, num, plugin.settings.lexiconBaseUrlGreek, plugin.settings.lexiconBaseUrlHebrew),
 					"_blank"
 				);
+			};
+			a.addEventListener("click", (ev) => {
+				ev.preventDefault();
+				// On touch the `title=` tooltip never renders. Surface the
+				// gloss as a Notice so the user gets the info before the
+				// lexicon URL switches apps.
+				if (isTouchPrimary() && entry) {
+					new Notice(`${e.payload} · ${entry.lemma} (${entry.translit}) — ${entry.gloss}`, 4000);
+				}
+				openLexicon();
 			});
 			frag.appendChild(a);
 		}

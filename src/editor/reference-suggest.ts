@@ -164,7 +164,8 @@ export class ReferenceSuggest extends EditorSuggest<SuggestionValue> {
 				this.app,
 				this.plugin.settings.hubFolder,
 				this.plugin.settings.hubPerChapter,
-				value.parsed.segments[0]!
+				value.parsed.segments[0]!,
+				{ allowNetwork: this.plugin.settings.allowNetwork }
 			).then((f) => {
 				new Notice(`Hub note: ${f.path}`);
 			});

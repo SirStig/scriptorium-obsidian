@@ -3,17 +3,68 @@ import type { ParsedReference, PassageSegment } from "../reference/types";
 import { toNumericOsisString } from "../reference/osis";
 import { ensureHubNote } from "../vault/hub";
 import { buildRefMenu } from "./ref-menu";
+import { lookupCrossRefs } from "../study/cross-refs-data";
+import { parseReference, formatReferenceHuman } from "../reference/parser";
+import { sectionClassFor } from "./section-styles";
+import { isTouchPrimary } from "../util/platform";
 import type ScriptoriumPlugin from "../main";
+
+const SECTION_LABELS: Record<string, string> = {
+	"scriptorium-section-pentateuch": "Pentateuch",
+	"scriptorium-section-history": "History",
+	"scriptorium-section-wisdom": "Wisdom",
+	"scriptorium-section-major-prophets": "Major Prophet",
+	"scriptorium-section-minor-prophets": "Minor Prophet",
+	"scriptorium-section-gospels": "Gospel",
+	"scriptorium-section-acts": "Acts",
+	"scriptorium-section-paulines": "Pauline Epistle",
+	"scriptorium-section-general": "General Epistle",
+	"scriptorium-section-apocalypse": "Apocalypse",
+	"scriptorium-section-deutero": "Deuterocanon",
+};
 
 function buildPopoverContent(
 	plugin: ScriptoriumPlugin,
 	parsed: ParsedReference,
 	matchedText: string,
-	onMoreActions: (e: MouseEvent) => void
+	onMoreActions: (e: MouseEvent) => void,
+	onOpenRef: (parsed: ParsedReference) => void,
+	onClose: () => void
 ): HTMLElement {
 	const seg = parsed.segments[0]!;
 	const wrap = document.createElement("div");
 	wrap.className = "scriptorium-ref-pop-wrap";
+
+	// Header: ref label + section badge + (mobile) close button
+	const head = document.createElement("div");
+	head.className = "scriptorium-ref-pop-head";
+	const label = document.createElement("span");
+	label.className = "scriptorium-ref-pop-label";
+	label.textContent = formatReferenceHuman(parsed.segments);
+	head.appendChild(label);
+
+	const sectionClass = sectionClassFor(seg.bookOsis);
+	if (sectionClass && SECTION_LABELS[sectionClass]) {
+		const sec = document.createElement("span");
+		sec.className = `scriptorium-ref-pop-section ${sectionClass}`;
+		sec.textContent = SECTION_LABELS[sectionClass]!;
+		head.appendChild(sec);
+	}
+
+	// Close button — explicit dismissal target, primarily for touch where
+	// hover-leaves don't exist. Always rendered (cheap), styled prominent on
+	// touch via CSS @media (hover: none).
+	const closeBtn = document.createElement("button");
+	closeBtn.className = "scriptorium-ref-pop-close";
+	closeBtn.setAttribute("aria-label", "Close preview");
+	closeBtn.textContent = "×";
+	closeBtn.addEventListener("click", (ev) => {
+		ev.preventDefault();
+		ev.stopPropagation();
+		onClose();
+	});
+	head.appendChild(closeBtn);
+	wrap.appendChild(head);
 
 	const body = document.createElement("div");
 	body.className = "scriptorium-ref-pop-body";
@@ -24,6 +75,32 @@ function buildPopoverContent(
 	attr.className = "scriptorium-ref-pop-attr";
 	attr.style.display = "none";
 	wrap.appendChild(attr);
+
+	// Cross-ref chips (when bundled or downloaded data has any)
+	const verseKey = toNumericOsisString([seg]);
+	const chips = lookupCrossRefs(verseKey, 4);
+	if (chips.length > 0) {
+		const chipRow = document.createElement("div");
+		chipRow.className = "scriptorium-ref-pop-chips";
+		const chipsLabel = document.createElement("span");
+		chipsLabel.className = "scriptorium-ref-pop-chiplabel";
+		chipsLabel.textContent = "See also";
+		chipRow.appendChild(chipsLabel);
+		for (const ref of chips) {
+			const refParsed = parseReference(ref);
+			if (!refParsed) continue;
+			const chip = document.createElement("button");
+			chip.className = "scriptorium-ref-pop-chip";
+			chip.textContent = formatReferenceHuman(refParsed.segments);
+			chip.addEventListener("click", (ev) => {
+				ev.preventDefault();
+				ev.stopPropagation();
+				onOpenRef(refParsed);
+			});
+			chipRow.appendChild(chip);
+		}
+		wrap.appendChild(chipRow);
+	}
 
 	void plugin
 		.pickProvider()
@@ -68,7 +145,8 @@ function buildPopoverContent(
 			plugin.app,
 			plugin.settings.hubFolder,
 			plugin.settings.hubPerChapter,
-			seg
+			seg,
+			{ allowNetwork: plugin.settings.allowNetwork }
 		).then((f) => plugin.app.workspace.openLinkText(f.path, "", true));
 	});
 	btn("Copy OSIS", "Copy OSIS id", () => {
@@ -91,6 +169,20 @@ function closeActivePopover(): void {
 	if (!activePopover) return;
 	activePopover.close();
 	activePopover = null;
+}
+
+export function closeActiveRefPopover(): void {
+	closeActivePopover();
+}
+
+export function hoverBlockedByTextSelection(anchor: HTMLElement): boolean {
+	const sel = window.getSelection();
+	if (!sel || sel.isCollapsed || sel.rangeCount === 0) return false;
+	try {
+		return sel.getRangeAt(0).intersectsNode(anchor);
+	} catch {
+		return false;
+	}
 }
 
 function reposition(pop: HTMLElement, anchor: DOMRect): void {
@@ -132,12 +224,25 @@ export function openRefPopover(
 	pop.style.visibility = "hidden";
 	const closer = { fn: (): void => {} };
 	pop.appendChild(
-		buildPopoverContent(plugin, parsed, matchedText, (e) => {
-			const menu = new Menu();
-			buildRefMenu(menu, { plugin, parsed, matchedText });
-			closer.fn();
-			menu.showAtMouseEvent(e);
-		})
+		buildPopoverContent(
+			plugin,
+			parsed,
+			matchedText,
+			(e) => {
+				const menu = new Menu();
+				buildRefMenu(menu, { plugin, parsed, matchedText });
+				closer.fn();
+				menu.showAtMouseEvent(e);
+			},
+			(refParsed) => {
+				closer.fn();
+				const seg2 = refParsed.segments[0];
+				if (seg2) {
+					plugin.openParsed(refParsed);
+				}
+			},
+			() => closer.fn()
+		)
 	);
 	document.body.appendChild(pop);
 
@@ -217,7 +322,8 @@ export function attachRefPopover(
 	trigger: HTMLElement,
 	seg: PassageSegment,
 	parsed: ParsedReference,
-	matchedText: string
+	matchedText: string,
+	opts?: { onReadingActivate?: (p: ParsedReference) => void }
 ): void {
 	let openTimer = 0;
 	let opened: PopoverState | null = null;
@@ -225,6 +331,7 @@ export function attachRefPopover(
 	const open = (): void => {
 		if (!plugin.settings.hoverPopover) return;
 		if (opened) return;
+		if (hoverBlockedByTextSelection(trigger)) return;
 		opened = openRefPopover(plugin, trigger, parsed, matchedText);
 		// Forget when the popover closes itself.
 		const origClose = opened.close;
@@ -234,18 +341,44 @@ export function attachRefPopover(
 		};
 	};
 
-	trigger.addEventListener("mouseenter", () => {
-		window.clearTimeout(openTimer);
-		openTimer = window.setTimeout(open, 200);
-	});
-	trigger.addEventListener("mouseleave", () => {
-		window.clearTimeout(openTimer);
-	});
+	if (!isTouchPrimary()) {
+		trigger.addEventListener("mouseenter", () => {
+			window.clearTimeout(openTimer);
+			openTimer = window.setTimeout(open, 200);
+		});
+		trigger.addEventListener("mouseleave", () => {
+			window.clearTimeout(openTimer);
+		});
+	}
 	trigger.addEventListener("focus", open);
+
+	// Tap-toggle on touch. Track touchstart position so a vertical scroll that
+	// happens to start on the anchor doesn't fire the popover.
+	let tStartX = 0;
+	let tStartY = 0;
+	let tMoved = false;
+	trigger.addEventListener("touchstart", (e) => {
+		const t = e.touches[0];
+		if (!t) return;
+		tStartX = t.clientX;
+		tStartY = t.clientY;
+		tMoved = false;
+	}, { passive: true });
+	trigger.addEventListener("touchmove", (e) => {
+		const t = e.touches[0];
+		if (!t) return;
+		if (Math.abs(t.clientX - tStartX) > 8 || Math.abs(t.clientY - tStartY) > 8) {
+			tMoved = true;
+		}
+	}, { passive: true });
 	trigger.addEventListener("touchend", (e) => {
+		if (tMoved) return;
 		e.preventDefault();
 		if (opened) opened.close();
-		else open();
+		else {
+			open();
+			opts?.onReadingActivate?.(parsed);
+		}
 	}, { passive: false });
 	// Keep `seg` referenced (some implementations may want the segment id later).
 	void seg;

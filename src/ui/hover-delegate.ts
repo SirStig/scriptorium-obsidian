@@ -1,5 +1,6 @@
 import { parseReference } from "../reference/parser";
-import { openRefPopover } from "./ref-popover";
+import { hoverBlockedByTextSelection, openRefPopover } from "./ref-popover";
+import { isTouchPrimary } from "../util/platform";
 import type ScriptoriumPlugin from "../main";
 
 /**
@@ -17,6 +18,11 @@ export class RefHoverDelegate {
 	constructor(private plugin: ScriptoriumPlugin) {}
 
 	attach(): void {
+		// Touch primary: hover doesn't exist as an input modality, and Obsidian
+		// Mobile's editor long-press already shows the editor-menu (wired in
+		// main.ts) which includes ref actions. Skip the listeners entirely.
+		if (isTouchPrimary()) return;
+
 		const onOver = (e: MouseEvent): void => {
 			if (!this.plugin.settings.hoverPopover) return;
 			const t = e.target as Element | null;
@@ -41,10 +47,16 @@ export class RefHoverDelegate {
 				this.currentTarget = null;
 			}
 		};
+		const onCtx = (): void => {
+			window.clearTimeout(this.hoverTimer);
+			this.currentTarget = null;
+		};
 		document.addEventListener("mouseover", onOver);
 		document.addEventListener("mouseout", onOut);
+		document.addEventListener("contextmenu", onCtx, true);
 		this.cleanups.push(() => document.removeEventListener("mouseover", onOver));
 		this.cleanups.push(() => document.removeEventListener("mouseout", onOut));
+		this.cleanups.push(() => document.removeEventListener("contextmenu", onCtx, true));
 	}
 
 	detach(): void {
@@ -56,6 +68,7 @@ export class RefHoverDelegate {
 	private tryOpen(span: HTMLElement): void {
 		const text = span.textContent ?? "";
 		if (!text.trim()) return;
+		if (hoverBlockedByTextSelection(span)) return;
 		const parsed = parseReference(text.trim());
 		if (!parsed?.segments[0]) return;
 		openRefPopover(this.plugin, span, parsed, text.trim());

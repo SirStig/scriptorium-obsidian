@@ -3,6 +3,13 @@ import type ScriptoriumPlugin from "./main";
 import { BiblePickerModal } from "./ui/bible-picker";
 import { parseReference, formatReferenceHuman } from "./reference/parser";
 import { StudyNoteCreateModal } from "./studio/create-modal";
+import {
+	downloadStrongs,
+	loadDownloadedStrongs,
+	clearDownloadedStrongs,
+} from "./study/strongs-online";
+import { downloadedStrongsCount } from "./study/strongs-data";
+import { isMobileApp } from "./util/platform";
 
 export type ExternalApp =
 	| "olivetree"
@@ -52,6 +59,12 @@ export interface ScriptoriumSettings {
 	customAliases: Record<string, string>;
 	customAliasesNotePath: string;
 	pericopesNotePath: string;
+	strongsNotePath: string;
+	crossRefsNotePath: string;
+	crossRefsInPane: boolean;
+	backlinksInPane: boolean;
+	verseOfDay: boolean;
+	verseOfDayCache: { reference: string; text: string; translation: string; day: string } | null;
 	suggestAriaHints: boolean;
 	ambientSuggest: boolean;
 	selectionBubble: boolean;
@@ -93,11 +106,35 @@ export const DEFAULT_SETTINGS: ScriptoriumSettings = {
 	customAliases: {},
 	customAliasesNotePath: "",
 	pericopesNotePath: "",
+	strongsNotePath: "",
+	crossRefsNotePath: "",
+	crossRefsInPane: true,
+	backlinksInPane: true,
+	verseOfDay: false,
+	verseOfDayCache: null,
 	suggestAriaHints: true,
 	ambientSuggest: false,
 	selectionBubble: true,
 	hoverPopover: true,
 };
+
+type ReferenceQuickUi = "both" | "hover" | "selection" | "off";
+
+function referenceQuickUiFromFlags(hoverPopover: boolean, selectionBubble: boolean): ReferenceQuickUi {
+	if (hoverPopover && selectionBubble) return "both";
+	if (hoverPopover) return "hover";
+	if (selectionBubble) return "selection";
+	return "off";
+}
+
+function applyReferenceQuickUi(mode: ReferenceQuickUi): { hoverPopover: boolean; selectionBubble: boolean } {
+	switch (mode) {
+		case "both": return { hoverPopover: true, selectionBubble: true };
+		case "hover": return { hoverPopover: true, selectionBubble: false };
+		case "selection": return { hoverPopover: false, selectionBubble: true };
+		default: return { hoverPopover: false, selectionBubble: false };
+	}
+}
 
 type SectionDef = {
 	id: string;
@@ -126,6 +163,8 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			text: "Scripture references, app handoffs, previews, and study workflows.",
 		});
 
+		this.renderFirstRunChecklist(containerEl);
+
 		const searchWrap = containerEl.createDiv({ cls: "scriptorium-settings-search" });
 		const searchInput = searchWrap.createEl("input", {
 			attr: { type: "search", placeholder: "Search settings…", "aria-label": "Search settings" },
@@ -153,6 +192,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 		];
 
 		const sectionEls: HTMLElement[] = [];
+		const navBtns: HTMLButtonElement[] = [];
 		for (const s of sections) {
 			const navBtn = nav.createEl("button", {
 				cls: "scriptorium-settings-nav-btn",
@@ -163,12 +203,19 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 				const target = sectionsHost.querySelector(`[data-section-id="${s.id}"]`);
 				target?.scrollIntoView({ behavior: "smooth", block: "start" });
 			});
+			navBtns.push(navBtn);
 
 			const el = sectionsHost.createDiv({
 				cls: "scriptorium-settings-section",
 				attr: { "data-section-id": s.id },
 			});
-			el.createEl("h3", { text: s.label, cls: "scriptorium-settings-section-title" });
+			const titleEl = el.createEl("h3", { cls: "scriptorium-settings-section-title" });
+			titleEl.createSpan({ text: s.label });
+			const badge = this.sectionStatusBadge(s.id);
+			if (badge) {
+				const span = titleEl.createSpan({ cls: `scriptorium-status-badge ${badge.cls}`, text: badge.text });
+				if (badge.title) span.setAttr("title", badge.title);
+			}
 			el.createEl("p", { text: s.helper, cls: "scriptorium-settings-section-helper" });
 			s.render(el);
 			sectionEls.push(el);
@@ -190,6 +237,98 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 				sec.style.display = anyVisible ? "" : "none";
 			}
 		});
+
+		// Highlight the section currently in view as the user scrolls.
+		const observer = new IntersectionObserver(
+			(entries) => {
+				for (const e of entries) {
+					if (!e.isIntersecting) continue;
+					const id = (e.target as HTMLElement).dataset.sectionId;
+					for (const b of navBtns) {
+						b.classList.toggle("is-active", b.dataset.sectionTarget === id);
+					}
+				}
+			},
+			{ root: containerEl, rootMargin: "-30% 0px -65% 0px", threshold: 0 }
+		);
+		for (const sec of sectionEls) observer.observe(sec);
+	}
+
+	private sectionStatusBadge(id: string): { cls: string; text: string; title?: string } | null {
+		const s = this.plugin.settings;
+		switch (id) {
+			case "providers": {
+				if (s.textProvider === "free_bible") return { cls: "is-ok", text: "✓ Free", title: "Free Bible API enabled" };
+				if (s.textProvider === "api_bible") return s.apiBibleKey
+					? { cls: "is-ok", text: "✓ Configured" }
+					: { cls: "is-warn", text: "⚠ Needs key" };
+				if (s.textProvider === "esv") return s.esvApiKey
+					? { cls: "is-ok", text: "✓ Configured" }
+					: { cls: "is-warn", text: "⚠ Needs key" };
+				if (s.textProvider === "vault_folder") return { cls: "is-muted", text: "Vault" };
+				if (s.textProvider === "none") return { cls: "is-muted", text: "Refs only" };
+				return null;
+			}
+			case "external": {
+				if (s.openApp === "logos_uri") {
+					return s.logosResourceAlias && s.logosRefPrefix
+						? { cls: "is-ok", text: "✓ Logos" }
+						: { cls: "is-warn", text: "⚠ Logos: alias + prefix needed" };
+				}
+				if (s.openApp === "none") return { cls: "is-muted", text: "Disabled" };
+				return null;
+			}
+			case "canon":
+				return s.includeDeuterocanon
+					? { cls: "is-muted", text: `Canon + DC` }
+					: { cls: "is-muted", text: "Protestant" };
+			default:
+				return null;
+		}
+	}
+
+	private renderFirstRunChecklist(host: HTMLElement): void {
+		const s = this.plugin.settings;
+		const items: { ok: boolean; text: string }[] = [];
+		// Provider configured?
+		if (s.textProvider === "free_bible") items.push({ ok: true, text: "Free Bible API enabled — verse text works out of the box." });
+		else if (s.textProvider === "api_bible") items.push({ ok: !!s.apiBibleKey, text: s.apiBibleKey ? "API.Bible key set." : "API.Bible selected — paste a key in Text providers." });
+		else if (s.textProvider === "esv") items.push({ ok: !!s.esvApiKey, text: s.esvApiKey ? "ESV key set." : "ESV selected — paste a key in Text providers." });
+		else if (s.textProvider === "vault_folder") items.push({ ok: true, text: "Using vault folder for text." });
+		else items.push({ ok: false, text: "No text provider — switch to Free Bible API to get verse text." });
+
+		// External app default useful?
+		items.push({
+			ok: s.openApp !== "none",
+			text:
+				s.openApp === "none"
+					? "External app set to 'None' — pick one in External apps to enable Open commands."
+					: `Open passages in: ${s.openApp.replace(/_/g, " ")}.`,
+		});
+
+		// Reference quick UI
+		items.push({
+			ok: s.hoverPopover || s.selectionBubble,
+			text: !s.hoverPopover && !s.selectionBubble
+				? "Reference preview/selection UI is off — choose a mode under Editor if you want quick actions."
+				: s.hoverPopover && s.selectionBubble
+					? "Preview + selection quick actions are on (preview waits if your selection overlaps a reference)."
+					: s.hoverPopover
+						? "Preview on — selection bar off."
+						: "Selection bar on — preview off.",
+		});
+
+		const allOk = items.every((i) => i.ok);
+		if (allOk) return; // Don't bother once everything's set.
+
+		const box = host.createDiv({ cls: "scriptorium-settings-firstrun" });
+		box.createEl("strong", { text: "Quick setup" });
+		box.createEl("span", { text: " — a couple of things to check before you dive in:" });
+		const ul = box.createEl("ul");
+		for (const it of items) {
+			const li = ul.createEl("li", { cls: it.ok ? "is-ok" : "is-warn", text: it.text });
+			void li;
+		}
 	}
 
 	// -----------------------------------------------------------------------
@@ -230,23 +369,23 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(host)
-			.setName("Hover popover on references")
-			.setDesc("Show passage preview and quick actions when hovering a detected reference (works in both edit and reading mode).")
-			.addToggle((c) =>
-				c.setValue(this.plugin.settings.hoverPopover).onChange(async (v) => {
-					this.plugin.settings.hoverPopover = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		new Setting(host)
-			.setName("Selection action bar")
-			.setDesc("When you select text containing a reference, show a floating bar with quick actions (open, hub, copy OSIS, insert text).")
-			.addToggle((c) =>
-				c.setValue(this.plugin.settings.selectionBubble).onChange(async (v) => {
-					this.plugin.settings.selectionBubble = v;
-					await this.plugin.saveSettings();
-				})
+			.setName("Reference quick actions")
+			.setDesc(
+				"Choose how previews and shortcuts appear over references. Preview: passage preview when pointing at (desktop) or tapping (mobile) highlighted refs in reading mode. Selection: toolbar when highlighted text parses as a reference. Use one mode to avoid stacking UIs; with both enabled, overlapping the ref with an active selection defers preview until the selection clears, and right-click / long-press hides the floating toolbar and preview."
+			)
+			.addDropdown((dd) =>
+				dd
+					.addOption("both", "Preview + selection bar")
+					.addOption("hover", "Preview only")
+					.addOption("selection", "Selection bar only")
+					.addOption("off", "Off")
+					.setValue(referenceQuickUiFromFlags(this.plugin.settings.hoverPopover, this.plugin.settings.selectionBubble))
+					.onChange(async (v) => {
+						const { hoverPopover, selectionBubble } = applyReferenceQuickUi(v as ReferenceQuickUi);
+						this.plugin.settings.hoverPopover = hoverPopover;
+						this.plugin.settings.selectionBubble = selectionBubble;
+						await this.plugin.saveSettings();
+					})
 			);
 
 		new Setting(host)
@@ -351,6 +490,13 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 	}
 
 	private sectionExternalApps(host: HTMLElement): void {
+		if (isMobileApp()) {
+			const note = host.createDiv({ cls: "scriptorium-settings-help" });
+			note.setText(
+				"On mobile, custom URI schemes (logosres:, accord://, olivetree://) only resolve when the matching app is installed on this device. Web destinations (biblia.com, BibleGateway, YouVersion, Blue Letter Bible, STEP) always work."
+			);
+		}
+
 		new Setting(host)
 			.setName("Open passages in")
 			.setDesc("Default destination for 'Open in app' commands.")
@@ -363,7 +509,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 					.addOption("biblegateway", "BibleGateway (web)")
 					.addOption("blueletter", "Blue Letter Bible (web)")
 					.addOption("stepbible", "STEP Bible (web)")
-					.addOption("logos_uri", "Logos desktop (logosres:)")
+					.addOption("logos_uri", "Logos (logosres:)")
 					.addOption("none", "No automatic URL in commands")
 					.setValue(this.plugin.settings.openApp)
 					.onChange(async (v) => {
@@ -727,6 +873,83 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(host)
+			.setName("Cross-references extras path")
+			.setDesc(
+				"Optional. Vault note with a JSON code block: { \"John.3.16\": [\"Rom.5.8\", \"1John.4.10\"], ... }. Extends the bundled starter set; useful for importing the full Treasury of Scripture Knowledge."
+			)
+			.addText((t) =>
+				t.setValue(this.plugin.settings.crossRefsNotePath).onChange(async (v) => {
+					this.plugin.settings.crossRefsNotePath = v.trim();
+					await this.plugin.saveSettings();
+					void this.plugin.loadCrossRefsFromNote();
+				})
+			);
+
+		new Setting(host)
+			.setName("Reload cross-references")
+			.addButton((b) =>
+				b.setButtonText("Reload").onClick(async () => {
+					await this.plugin.loadCrossRefsFromNote();
+					new Notice("Cross-references reloaded");
+				})
+			);
+
+		const dlCounts = downloadedStrongsCount();
+		const isDownloaded = dlCounts.greek > 0 || dlCounts.hebrew > 0;
+		new Setting(host)
+			.setName("Full Strong's lexicon (online, public-domain)")
+			.setDesc(
+				isDownloaded
+					? `Installed: ${dlCounts.greek} Greek + ${dlCounts.hebrew} Hebrew entries. Lookups land offline after download.`
+					: "Download the full OpenScriptures Strong's dictionary (CC0). One-time fetch, then everything's offline. Bundled common-words coverage will be supplemented automatically."
+			)
+			.addButton((b) =>
+				b
+					.setButtonText(isDownloaded ? "Re-download" : "Download")
+					.setCta()
+					.onClick(async () => {
+						if (!this.plugin.settings.allowNetwork) {
+							new Notice("Network disabled — toggle Allow network in settings first.");
+							return;
+						}
+						await downloadStrongs(this.app, this.plugin);
+						this.display();
+					})
+			)
+			.addExtraButton((b) =>
+				b
+					.setIcon("trash-2")
+					.setTooltip("Clear downloaded data")
+					.onClick(async () => {
+						await clearDownloadedStrongs(this.app, this.plugin);
+						this.display();
+					})
+			);
+		void loadDownloadedStrongs;
+
+		new Setting(host)
+			.setName("Strong's lexicon extras path")
+			.setDesc(
+				"Optional. Path to a vault note containing a JSON code block with extra Strong's entries (extends the bundled common-words set). Shape: {greek:{\"3056\":{lemma,translit,gloss}}, hebrew:{...}}."
+			)
+			.addText((t) =>
+				t.setValue(this.plugin.settings.strongsNotePath).onChange(async (v) => {
+					this.plugin.settings.strongsNotePath = v.trim();
+					await this.plugin.saveSettings();
+					void this.plugin.loadStrongsFromNote();
+				})
+			);
+
+		new Setting(host)
+			.setName("Reload Strong's extras")
+			.addButton((b) =>
+				b.setButtonText("Reload").onClick(async () => {
+					await this.plugin.loadStrongsFromNote();
+					new Notice("Strong's extras reloaded");
+				})
+			);
+
+		new Setting(host)
 			.setName("Reload pericope pack")
 			.addButton((b) =>
 				b.setButtonText("Reload").onClick(async () => {
@@ -785,6 +1008,37 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 					this.plugin.settings.showPassageRibbon = v;
 					await this.plugin.saveSettings();
 					this.plugin.refreshRibbon();
+				})
+			);
+
+		new Setting(host)
+			.setName("Cross-references in passage pane")
+			.setDesc("Show 'See also' parallels (TSK + custom) for the current passage.")
+			.addToggle((c) =>
+				c.setValue(this.plugin.settings.crossRefsInPane).onChange(async (v) => {
+					this.plugin.settings.crossRefsInPane = v;
+					await this.plugin.saveSettings();
+				})
+			);
+
+		new Setting(host)
+			.setName("Verse of the day in status bar")
+			.setDesc("Shows a daily random verse from bible-api.com (no key, public-domain). Fetched once a day; click the status item to see the full text.")
+			.addToggle((c) =>
+				c.setValue(this.plugin.settings.verseOfDay).onChange(async (v) => {
+					this.plugin.settings.verseOfDay = v;
+					await this.plugin.saveSettings();
+					await this.plugin.refreshVerseOfDayWidget();
+				})
+			);
+
+		new Setting(host)
+			.setName("Backlinks in passage pane")
+			.setDesc("Show notes in your vault that mention the current chapter (via passages_resolved or osis frontmatter).")
+			.addToggle((c) =>
+				c.setValue(this.plugin.settings.backlinksInPane).onChange(async (v) => {
+					this.plugin.settings.backlinksInPane = v;
+					await this.plugin.saveSettings();
 				})
 			);
 	}

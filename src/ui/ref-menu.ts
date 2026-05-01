@@ -78,7 +78,8 @@ export function buildRefMenu(menu: Menu, ctx: MenuContext): void {
 					plugin.app,
 					plugin.settings.hubFolder,
 					plugin.settings.hubPerChapter,
-					seg
+					seg,
+					{ allowNetwork: plugin.settings.allowNetwork }
 				);
 				await plugin.app.workspace.openLinkText(file.path, "", true);
 			})

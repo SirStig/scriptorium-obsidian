@@ -18,8 +18,10 @@ import { BiblePickerModal } from "./ui/bible-picker";
 import { StudyNoteCreateModal } from "./studio/create-modal";
 import { exportToSlides } from "./studio/slide-export";
 import { indexPassagesInFrontmatter } from "./studio/index-passages";
+import { outlineToMermaid } from "./studio/mermaid-outline";
 import { registerReadingModeProcessors } from "./reading/postprocess";
 import { parseReference } from "./reference/parser";
+import type { ParsedReference } from "./reference/types";
 import { toNumericOsisString } from "./reference/osis";
 import { configureCanon } from "./reference/books";
 import { setOsisCompactExtras } from "./reference/osis";
@@ -38,6 +40,14 @@ import { PassagePaneView, PASSAGE_VIEW_TYPE } from "./ui/passage-view";
 import { parseLectionaryCsv, rowForDate, type LectionaryRow } from "./pedagogy/lectionary";
 import { getActivePericopes, setUserPericopes, type PericopeEntry } from "./pedagogy/pericopes";
 import { openGreekPicker, openHebrewPicker } from "./study/greek-insert";
+import { setUserStrongs, downloadedStrongsCount, type StrongsEntry } from "./study/strongs-data";
+import {
+	downloadStrongs,
+	loadDownloadedStrongs,
+	clearDownloadedStrongs,
+} from "./study/strongs-online";
+import { fetchVerseOfTheDay, showVerseOfDayNotice, type VerseOfDay } from "./study/verse-of-day";
+import { setUserCrossRefs } from "./study/cross-refs-data";
 import type { Extension } from "@codemirror/state";
 import { ensureHubNote } from "./vault/hub";
 import { linkRefsInMarkdown } from "./vault/link-refs";
@@ -57,9 +67,30 @@ export default class ScriptoriumPlugin extends Plugin {
 	lectionaryRows: LectionaryRow[] = [];
 	ribbonEl: HTMLElement | null = null;
 	statusBarEl: HTMLElement | null = null;
+	vodStatusEl: HTMLElement | null = null;
 	selectionBubble: SelectionBubble | null = null;
 	hoverDelegate: RefHoverDelegate | null = null;
 	studyNoteRibbonEl: HTMLElement | null = null;
+
+	/** Preview/reading mode: last ref the user clicked or opened; drives the passage pane when not pinned. */
+	readingPassageRef: ParsedReference | null = null;
+	private passagePaneRefreshTimer = 0;
+	private editorPassageTimer = 0;
+
+	/** Call when the user activates a ref in reading/preview (click, context menu, touch popover). */
+	noteReadingPassageRef(parsed: ParsedReference): void {
+		this.readingPassageRef = parsed;
+		this.schedulePassagePaneRefresh();
+	}
+
+	schedulePassagePaneRefresh(): void {
+		window.clearTimeout(this.passagePaneRefreshTimer);
+		this.passagePaneRefreshTimer = window.setTimeout(() => {
+			const leaves = this.app.workspace.getLeavesOfType(PASSAGE_VIEW_TYPE);
+			const v = leaves[0]?.view;
+			if (v instanceof PassagePaneView) void v.refresh();
+		}, 100);
+	}
 
 	reconcileSuggestTrigger(v: string): void {
 		const t = v.trim();
@@ -168,6 +199,44 @@ export default class ScriptoriumPlugin extends Plugin {
 		this.app.workspace.updateOptions();
 	}
 
+	async refreshVerseOfDayWidget(): Promise<void> {
+		if (!this.settings.verseOfDay) {
+			if (this.vodStatusEl) {
+				this.vodStatusEl.remove();
+				this.vodStatusEl = null;
+			}
+			return;
+		}
+		if (!this.settings.allowNetwork) return;
+
+		if (!this.vodStatusEl) {
+			this.vodStatusEl = this.addStatusBarItem();
+			this.vodStatusEl.addClass("scriptorium-vod-statusbar");
+			this.vodStatusEl.style.cursor = "pointer";
+			this.vodStatusEl.addEventListener("click", () => {
+				const cached = this.settings.verseOfDayCache;
+				if (cached) showVerseOfDayNotice(cached as VerseOfDay);
+			});
+			this.vodStatusEl.setText("📖 …");
+		}
+
+		const store = {
+			get: (): VerseOfDay | null => this.settings.verseOfDayCache,
+			set: (v: VerseOfDay): void => {
+				this.settings.verseOfDayCache = v;
+				void this.saveSettings();
+			},
+		};
+		const v = await fetchVerseOfTheDay(this.settings.freeBibleTranslation || "web", store);
+		if (v && this.vodStatusEl) {
+			this.vodStatusEl.setText(`📖 ${v.reference}`);
+			this.vodStatusEl.setAttr(
+				"aria-label",
+				`Verse of the day: ${v.reference} (${v.translation.toUpperCase()}). Click to see text.`
+			);
+		}
+	}
+
 	refreshStatusBar(): void {
 		if (!this.statusBarEl) return;
 		const mode = this.settings.textProvider;
@@ -243,6 +312,64 @@ export default class ScriptoriumPlugin extends Plugin {
 		this.lectionaryRows = parseLectionaryCsv(text);
 	}
 
+	async loadCrossRefsFromNote(): Promise<void> {
+		const p = this.settings.crossRefsNotePath;
+		if (!p) {
+			setUserCrossRefs({});
+			return;
+		}
+		const f = this.app.vault.getAbstractFileByPath(p);
+		if (!(f instanceof TFile)) {
+			setUserCrossRefs({});
+			return;
+		}
+		const text = await this.app.vault.read(f);
+		const block = text.match(/```json\s*([\s\S]*?)```/i);
+		if (!block?.[1]) {
+			setUserCrossRefs({});
+			return;
+		}
+		try {
+			const data = JSON.parse(block[1]) as Record<string, string[]>;
+			if (data && typeof data === "object" && !Array.isArray(data)) {
+				setUserCrossRefs(data);
+			}
+		} catch {
+			new Notice("Could not parse cross-refs JSON");
+		}
+	}
+
+	async loadStrongsFromNote(): Promise<void> {
+		const p = this.settings.strongsNotePath;
+		if (!p) {
+			setUserStrongs({});
+			return;
+		}
+		const f = this.app.vault.getAbstractFileByPath(p);
+		if (!(f instanceof TFile)) {
+			setUserStrongs({});
+			return;
+		}
+		const text = await this.app.vault.read(f);
+		const block = text.match(/```json\s*([\s\S]*?)```/i);
+		if (!block?.[1]) {
+			setUserStrongs({});
+			return;
+		}
+		try {
+			const data = JSON.parse(block[1]) as {
+				greek?: Record<string, StrongsEntry>;
+				hebrew?: Record<string, StrongsEntry>;
+			};
+			setUserStrongs({
+				greek: data.greek && typeof data.greek === "object" ? data.greek : undefined,
+				hebrew: data.hebrew && typeof data.hebrew === "object" ? data.hebrew : undefined,
+			});
+		} catch {
+			new Notice("Could not parse Strong's extras JSON");
+		}
+	}
+
 	async loadPericopesFromNote(): Promise<void> {
 		const p = this.settings.pericopesNotePath;
 		if (!p) {
@@ -297,6 +424,10 @@ export default class ScriptoriumPlugin extends Plugin {
 		await this.loadLectionary();
 		await this.loadAliasesFromNote();
 		await this.loadPericopesFromNote();
+		await this.loadStrongsFromNote();
+		await this.loadCrossRefsFromNote();
+		// Hydrate downloaded Strong's lexicon if previously fetched.
+		await loadDownloadedStrongs(this.app, this);
 		this.refreshProviders();
 		this.registerEditorExtension(this.cmExtras);
 		this.refreshEditorExtensions();
@@ -314,6 +445,8 @@ export default class ScriptoriumPlugin extends Plugin {
 		this.hoverDelegate = new RefHoverDelegate(this);
 		this.hoverDelegate.attach();
 		this.register(() => this.hoverDelegate?.detach());
+
+		void this.refreshVerseOfDayWidget();
 
 		this.statusBarEl = this.addStatusBarItem();
 		this.statusBarEl.addClass("scriptorium-statusbar");
@@ -335,18 +468,22 @@ export default class ScriptoriumPlugin extends Plugin {
 		document.body.appendChild(aria);
 		this.register(() => aria.remove());
 
-		let passageRefreshTimer = 0;
 		this.registerEvent(
 			this.app.workspace.on("active-leaf-change", () => {
-				window.clearTimeout(passageRefreshTimer);
-				passageRefreshTimer = window.setTimeout(() => {
-					const leaves = this.app.workspace.getLeavesOfType(PASSAGE_VIEW_TYPE);
-					const v = leaves[0]?.view;
-					if (v instanceof PassagePaneView) void v.refresh();
-				}, 150);
+				this.readingPassageRef = null;
+				this.schedulePassagePaneRefresh();
 			})
 		);
-		this.register(() => window.clearTimeout(passageRefreshTimer));
+		this.registerEvent(
+			this.app.workspace.on("editor-change", () => {
+				window.clearTimeout(this.editorPassageTimer);
+				this.editorPassageTimer = window.setTimeout(() => this.schedulePassagePaneRefresh(), 220);
+			})
+		);
+		this.register(() => {
+			window.clearTimeout(this.passagePaneRefreshTimer);
+			window.clearTimeout(this.editorPassageTimer);
+		});
 
 		this.registerEvent(
 			this.app.workspace.on("editor-menu", (menu, editor) => {
@@ -402,7 +539,8 @@ export default class ScriptoriumPlugin extends Plugin {
 					this.app,
 					this.settings.hubFolder,
 					this.settings.hubPerChapter,
-					hit.parsed.segments[0]!
+					hit.parsed.segments[0]!,
+					{ allowNetwork: this.settings.allowNetwork }
 				);
 				await this.app.workspace.openLinkText(file.path, "", true);
 			},
@@ -573,6 +711,41 @@ export default class ScriptoriumPlugin extends Plugin {
 					void this.app.workspace.openLinkText(slidesPath, "", true);
 				});
 				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "scriptorium-download-strongs",
+			name: "Scriptorium: Download full Strong's lexicon (CC0)",
+			callback: async () => {
+				if (!this.settings.allowNetwork) {
+					new Notice("Network disabled — toggle Allow network in settings first.");
+					return;
+				}
+				await downloadStrongs(this.app, this);
+			},
+		});
+
+		this.addCommand({
+			id: "scriptorium-clear-strongs",
+			name: "Scriptorium: Clear downloaded Strong's data",
+			callback: async () => {
+				await clearDownloadedStrongs(this.app, this);
+			},
+		});
+
+		this.addCommand({
+			id: "scriptorium-insert-mermaid-outline",
+			name: "Scriptorium: Insert Mermaid outline diagram",
+			editorCallback: (editor) => {
+				const body = editor.getValue();
+				const mermaid = outlineToMermaid(body);
+				if (!mermaid) {
+					new Notice("No headings found to diagram.");
+					return;
+				}
+				const cursor = editor.getCursor();
+				editor.replaceRange(`\n${mermaid}\n`, cursor);
 			},
 		});
 
