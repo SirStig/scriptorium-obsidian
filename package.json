@@ -1,6 +1,6 @@
 {
 	"name": "scriptorium",
-	"version": "0.2.0",
+	"version": "1.0.0",
 	"description": "Scriptorium — scripture reference parsing, hover & selection actions, app handoffs, free Bible text out of the box, hub notes, study-note types, and Greek/Hebrew helpers for Obsidian.",
 	"main": "main.js",
 	"scripts": {
