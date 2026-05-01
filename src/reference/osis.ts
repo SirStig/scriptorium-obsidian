@@ -11,65 +11,17 @@ export function setOsisCompactExtras(map: Record<string, string>): void {
 	}
 }
 
+// Compact tokens not derivable from BookRecord (osis / name / aliases).
+// The OSIS dot parser also looks them up via the derived map (built from the
+// active book list at call time), so this only needs the genuine extras.
 const COMPACT_TO_OSIS: Record<string, string> = {
-	jn: "John",
 	jhn: "John",
-	mt: "Matt",
-	mk: "Mark",
-	lk: "Luke",
-	lu: "Luke",
-	ro: "Rom",
-	ga: "Gal",
-	php: "Phil",
-	col: "Col",
-	phm: "Phlm",
-	philem: "Phlm",
-	jm: "Jas",
-	jas: "Jas",
-	jud: "Jude",
-	re: "Rev",
-	rev: "Rev",
-	ps: "Ps",
-	psa: "Ps",
 	prv: "Prov",
-	pr: "Prov",
-	sos: "Song",
-	cant: "Song",
-	eccl: "Eccl",
 	qoh: "Eccl",
-	dan: "Dan",
-	gen: "Gen",
-	exo: "Exod",
-	exod: "Exod",
-	ex: "Exod",
-	lev: "Lev",
-	lv: "Lev",
-	num: "Num",
-	nm: "Num",
-	deu: "Deut",
-	deut: "Deut",
-	jos: "Josh",
-	jdg: "Judg",
-	ru: "Ruth",
-	isa: "Isa",
-	is: "Isa",
-	jer: "Jer",
-	ezk: "Ezek",
-	eze: "Ezek",
-	hos: "Hos",
 	joe: "Joel",
 	amo: "Amos",
 	oba: "Obad",
-	jon: "Jonah",
-	jonah: "Jonah",
-	mic: "Mic",
-	nah: "Nah",
-	hab: "Hab",
-	zep: "Zeph",
-	hag: "Hag",
-	zec: "Zech",
-	mal: "Mal",
-	mat: "Matt",
+	deu: "Deut",
 };
 
 const OSIS_TO_API_BIBLE: Record<string, string> = {
@@ -161,65 +113,29 @@ export function toNumericOsisString(segments: PassageSegment[]): string {
 		.join(",");
 }
 
-function resolveCompactBookToken(tok: string): string | null {
-	const t = tok.trim();
-	const withDigit = t.match(/^(\d+)\s*([A-Za-z]+)$/);
-	if (withDigit) {
-		const num = withDigit[1];
-		const rest = withDigit[2]!.toLowerCase();
-		const key = `${num}${rest}`;
-		const candidates: Record<string, string> = {
-			"1cor": "1Cor",
-			"2cor": "2Cor",
-			"1corinthians": "1Cor",
-			"2corinthians": "2Cor",
-			"1sam": "1Sam",
-			"2sam": "2Sam",
-			"1samuel": "1Sam",
-			"2samuel": "2Sam",
-			"1ki": "1Kgs",
-			"2ki": "2Kgs",
-			"1kgs": "1Kgs",
-			"2kgs": "2Kgs",
-			"1ch": "1Chr",
-			"2ch": "2Chr",
-			"1chr": "1Chr",
-			"2chr": "2Chr",
-			"1th": "1Thess",
-			"2th": "2Thess",
-			"1thess": "1Thess",
-			"2thess": "2Thess",
-			"1ti": "1Tim",
-			"2ti": "2Tim",
-			"1tim": "1Tim",
-			"2tim": "2Tim",
-			"1pe": "1Pet",
-			"2pe": "2Pet",
-			"1pet": "1Pet",
-			"2pet": "2Pet",
-			"1jn": "1John",
-			"2jn": "2John",
-			"3jn": "3John",
-			"1john": "1John",
-			"2john": "2John",
-			"3john": "3John",
-			"1macc": "1Macc",
-			"2macc": "2Macc",
-		};
-		const c = candidates[key];
-		if (c) return c;
-		if (num === "1" && rest === "cor") return "1Cor";
-		if (num === "2" && rest === "cor") return "2Cor";
-	}
-	const lower = t.toLowerCase().replace(/\s+/g, "");
-	const compact = COMPACT_TO_OSIS[lower] ?? COMPACT_EXTRA[lower] ?? null;
-	if (compact) return compact;
-	const b = getBookByOsis(t);
-	if (b) return b.osis;
+function normalizeKey(s: string): string {
+	return s.toLowerCase().replace(/\s+/g, "");
+}
+
+function buildDerivedCompactMap(): Record<string, string> {
+	const out: Record<string, string> = {};
 	for (const book of getActiveBookList()) {
-		if (book.name.toLowerCase() === t.toLowerCase()) return book.osis;
+		out[normalizeKey(book.osis)] = book.osis;
+		out[normalizeKey(book.name)] = book.osis;
+		for (const a of book.aliases) out[normalizeKey(a)] = book.osis;
 	}
-	const b2 = getBookByOsis(t.charAt(0).toUpperCase() + t.slice(1).toLowerCase());
+	return out;
+}
+
+function resolveCompactBookToken(tok: string): string | null {
+	const lower = normalizeKey(tok);
+	const derived = buildDerivedCompactMap();
+	if (derived[lower]) return derived[lower]!;
+	if (COMPACT_TO_OSIS[lower]) return COMPACT_TO_OSIS[lower]!;
+	if (COMPACT_EXTRA[lower]) return COMPACT_EXTRA[lower]!;
+	const b = getBookByOsis(tok.trim());
+	if (b) return b.osis;
+	const b2 = getBookByOsis(tok.charAt(0).toUpperCase() + tok.slice(1).toLowerCase());
 	return b2?.osis ?? null;
 }
 
@@ -250,6 +166,7 @@ export function tryParseOsisLike(input: string): ParsedReference | null {
 		if (!b || chapter < 1 || chapter > b.chapters) return null;
 		const end = v2 !== undefined && v2 >= v1 ? v2 : v1;
 		const maxV = maxVerseForChapter(osis, chapter);
+		if (v1 < 1 || v1 > maxV) return null;
 		const seg: PassageSegment = {
 			bookOsis: osis,
 			chapter,

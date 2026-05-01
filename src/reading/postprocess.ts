@@ -1,21 +1,11 @@
-import type { MarkdownPostProcessorContext } from "obsidian";
+import { Menu, type MarkdownPostProcessorContext } from "obsidian";
 import { parseReference } from "../reference/parser";
-import { formatStrongsUrl, findStrongsTokens } from "../study/strongs";
-import {
-	openExternalApp,
-	buildOliveTreeUrl,
-	buildBibliaWebUrl,
-} from "../handoff/urls";
-import type { HandoffOpts } from "../handoff/types";
+import { inlineRefRegex } from "../reference/regex";
+import { findStrongsTokens, formatStrongsUrl } from "../study/strongs";
+import { attachRefPopover } from "../ui/ref-popover";
+import { buildRefMenu } from "../ui/ref-menu";
+import { sectionClassFor } from "../ui/section-styles";
 import type ScriptoriumPlugin from "../main";
-
-function handoff(plugin: ScriptoriumPlugin): HandoffOpts {
-	return {
-		scheme: plugin.settings.olivetreeScheme,
-		translation: plugin.settings.bibliaTranslation,
-		youVersionId: plugin.settings.youVersionBibleId,
-	};
-}
 
 function mergeEvents(
 	events: { start: number; end: number; type: "ref" | "strong"; payload: string }[]
@@ -55,8 +45,7 @@ function wrapTextNode(node: Text, plugin: ScriptoriumPlugin): void {
 
 	const frag = document.createDocumentFragment();
 	let cursor = 0;
-	const refRe =
-		/\b((?:[1-3]\s+)?[A-Za-z][A-Za-z'.]*(?:\s+[A-Za-z][A-Za-z'.]*){0,3}\s+\d+\s*:\s*\d+(?:\s*[-–—]\s*\d+)?)\b/g;
+	const refRe = inlineRefRegex("g");
 	const matches: { start: number; end: number; text: string }[] = [];
 	let m: RegExpExecArray | null;
 	while ((m = refRe.exec(text)) !== null) {
@@ -67,17 +56,8 @@ function wrapTextNode(node: Text, plugin: ScriptoriumPlugin): void {
 	}
 	const strong = findStrongsTokens(text);
 	const events: { start: number; end: number; type: "ref" | "strong"; payload: string }[] = [];
-	for (const x of matches) {
-		events.push({ start: x.start, end: x.end, type: "ref", payload: x.text });
-	}
-	for (const s of strong) {
-		events.push({
-			start: s.start,
-			end: s.end,
-			type: "strong",
-			payload: `${s.kind}${s.num}`,
-		});
-	}
+	for (const x of matches) events.push({ start: x.start, end: x.end, type: "ref", payload: x.text });
+	for (const s of strong) events.push({ start: s.start, end: s.end, type: "strong", payload: `${s.kind}${s.num}` });
 	const outEvents = mergeEvents(events);
 
 	for (const e of outEvents) {
@@ -86,7 +66,7 @@ function wrapTextNode(node: Text, plugin: ScriptoriumPlugin): void {
 		}
 		if (e.type === "ref") {
 			const parsed = parseReference(e.payload);
-			if (!parsed) {
+			if (!parsed?.segments[0]) {
 				cursor = e.end;
 				continue;
 			}
@@ -94,38 +74,32 @@ function wrapTextNode(node: Text, plugin: ScriptoriumPlugin): void {
 			const span = document.createElement("span");
 			span.className = "scriptorium-ref-preview";
 			span.dataset.ref = e.payload;
+			if (plugin.settings.colorBookSection) {
+				span.classList.add(sectionClassFor(seg.bookOsis));
+			}
 			const a = document.createElement("a");
 			a.textContent = e.payload;
 			a.href = "#";
-			a.className = "internal-link";
+			a.className = "internal-link scriptorium-ref-anchor";
+			a.setAttribute("aria-label", `Scripture reference ${e.payload}`);
 			a.addEventListener("click", (ev) => {
 				ev.preventDefault();
-				const url =
-					openExternalApp(plugin.settings.openApp, handoff(plugin), seg) ??
-					buildBibliaWebUrl(plugin.settings.bibliaTranslation, seg);
-				window.open(url, "_blank");
-			});
-			const pop = document.createElement("div");
-			pop.className = "scriptorium-ref-pop";
-			pop.style.display = "none";
-			span.appendChild(a);
-			span.appendChild(pop);
-			void plugin.pickProvider().getPassage(seg).then((r) => {
-				if (r?.text) pop.textContent = r.text.slice(0, 500);
-				else {
-					const u =
-						plugin.settings.openApp === "olivetree"
-							? buildOliveTreeUrl(plugin.settings.olivetreeScheme, seg)
-							: buildBibliaWebUrl(plugin.settings.bibliaTranslation, seg);
-					pop.textContent = `Open: ${u}`;
+				if (ev.shiftKey) {
+					plugin.openParsed(parsed);
+					return;
 				}
+				const menu = new Menu();
+				buildRefMenu(menu, { plugin, parsed, matchedText: e.payload });
+				menu.showAtMouseEvent(ev);
 			});
-			span.addEventListener("mouseenter", () => {
-				pop.style.display = "block";
+			a.addEventListener("contextmenu", (ev) => {
+				ev.preventDefault();
+				const menu = new Menu();
+				buildRefMenu(menu, { plugin, parsed, matchedText: e.payload });
+				menu.showAtMouseEvent(ev);
 			});
-			span.addEventListener("mouseleave", () => {
-				pop.style.display = "none";
-			});
+			span.appendChild(a);
+			attachRefPopover(plugin, a, seg, parsed, e.payload);
 			frag.appendChild(span);
 		} else {
 			const kind = e.payload[0] === "G" ? "G" : "H";

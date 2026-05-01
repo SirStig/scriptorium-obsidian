@@ -41,7 +41,7 @@ export function syncFuzzyBooks(books: BookRecord[], aliasOverrides: Record<strin
 	activeList = books;
 	BOOK_CANDIDATES.length = 0;
 	for (const book of books) {
-		const labels = [book.name, ...book.aliases];
+		const labels = [book.osis, book.name, ...book.aliases];
 		for (const label of labels) {
 			const p = escapeRegExp(label).replace(/ /g, "\\s+");
 			BOOK_CANDIDATES.push({
@@ -64,16 +64,17 @@ export function syncFuzzyBooks(books: BookRecord[], aliasOverrides: Record<strin
 	BOOK_CANDIDATES.sort((a, b) => b.len - a.len);
 }
 
-export function matchBookPrefix(input: string): { book: BookRecord; end: number } | null {
+export function matchBookPrefix(input: string): { book: BookRecord; start: number; end: number } | null {
 	const s = normalize(input);
 	for (const c of BOOK_CANDIDATES) {
 		const re = new RegExp(c.pattern, "i");
 		const m = s.match(re);
 		if (m && m.index !== undefined) {
-			const end = m.index + m[0].length;
+			const start = m.index;
+			const end = start + m[0].length;
 			const after = s.slice(end).trimStart();
 			if (after.length === 0 || /^[\d.:;\-–—]/.test(after)) {
-				return { book: c.book, end };
+				return { book: c.book, start, end };
 			}
 		}
 	}

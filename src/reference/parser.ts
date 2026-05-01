@@ -1,34 +1,15 @@
 import { getBookByOsis, normalizeKey } from "./books";
 import { matchBookPrefix } from "./fuzzy";
 import { tryParseOsisLike } from "./osis";
-import { maxVerseForChapter } from "./verse-limits";
+import { maxVerseForChapter, totalChaptersForBook } from "./verse-limits";
 import type { ParsedReference, PassageSegment, VerseSpan } from "./types";
 
-const CV_RANGE = /^(\d+)\s*[:.]\s*(\d+)\s*(?:[-–—]\s*(\d+))?/;
-const CHAPTER_ONLY = /^(\d+)\s*$/;
+const CHUNK_RE =
+	/^(\d+)(?:\s*[:.]\s*(\d+))?(?:\s*-\s*(\d+)(?:\s*[:.]\s*(\d+))?)?$/;
 
 function validateChapter(bookOsis: string, chapter: number): boolean {
-	const b = getBookByOsis(bookOsis);
-	return !!b && chapter >= 1 && chapter <= b.chapters;
-}
-
-function span(a: number, b?: number): VerseSpan {
-	if (b === undefined || b < a) return { start: a, end: a };
-	return { start: a, end: b };
-}
-
-function parseChapterVerseChunk(rest: string): { chapter: number; span: VerseSpan; consumed: string } | null {
-	const t = rest.trim();
-	const m = t.match(CV_RANGE);
-	if (!m) return null;
-	const chapter = parseInt(m[1]!, 10);
-	const v1 = parseInt(m[2]!, 10);
-	const v2 = m[3] ? parseInt(m[3], 10) : undefined;
-	return {
-		chapter,
-		span: span(v1, v2),
-		consumed: m[0],
-	};
+	const total = totalChaptersForBook(bookOsis);
+	return total > 0 && chapter >= 1 && chapter <= total;
 }
 
 function segmentHuman(bookName: string, chapter: number, s: VerseSpan): string {
@@ -36,13 +17,87 @@ function segmentHuman(bookName: string, chapter: number, s: VerseSpan): string {
 	return `${bookName} ${chapter}:${s.start}–${s.end}`;
 }
 
-function chapterVersesEnd(bookOsis: string, chapter: number): VerseSpan {
-	const end = maxVerseForChapter(bookOsis, chapter);
-	return { start: 1, end };
+function pushVerseSpan(
+	out: PassageSegment[],
+	humanOut: string[],
+	bookOsis: string,
+	bookName: string,
+	chapter: number,
+	v1: number,
+	v2: number
+): void {
+	if (!validateChapter(bookOsis, chapter)) return;
+	const maxV = maxVerseForChapter(bookOsis, chapter);
+	if (v1 < 1 || v1 > maxV) return;
+	const start = v1;
+	const end = Math.max(start, Math.min(v2, maxV));
+	out.push({ bookOsis, chapter, verses: { start, end } });
+	humanOut.push(segmentHuman(bookName, chapter, { start, end }));
+}
+
+function pushFullChapter(
+	out: PassageSegment[],
+	humanOut: string[],
+	bookOsis: string,
+	bookName: string,
+	chapter: number
+): void {
+	if (!validateChapter(bookOsis, chapter)) return;
+	const max = maxVerseForChapter(bookOsis, chapter);
+	out.push({ bookOsis, chapter, verses: { start: 1, end: max } });
+	humanOut.push(`${bookName} ${chapter} (chapter)`);
+}
+
+function pushChapterRange(
+	out: PassageSegment[],
+	humanOut: string[],
+	bookOsis: string,
+	bookName: string,
+	c1: number,
+	c2: number
+): void {
+	const lo = Math.min(c1, c2);
+	const hi = Math.max(c1, c2);
+	for (let c = lo; c <= hi; c++) pushFullChapter(out, humanOut, bookOsis, bookName, c);
+}
+
+function pushCrossChapterRange(
+	out: PassageSegment[],
+	humanOut: string[],
+	bookOsis: string,
+	bookName: string,
+	c1: number,
+	v1: number,
+	c2: number,
+	v2: number
+): void {
+	if (c1 === c2) {
+		pushVerseSpan(out, humanOut, bookOsis, bookName, c1, v1, v2);
+		return;
+	}
+	if (c1 > c2) return;
+	const max1 = validateChapter(bookOsis, c1) ? maxVerseForChapter(bookOsis, c1) : 0;
+	if (max1 > 0) pushVerseSpan(out, humanOut, bookOsis, bookName, c1, v1, max1);
+	for (let c = c1 + 1; c <= c2 - 1; c++) pushFullChapter(out, humanOut, bookOsis, bookName, c);
+	if (validateChapter(bookOsis, c2)) pushVerseSpan(out, humanOut, bookOsis, bookName, c2, 1, v2);
+}
+
+function pushChapterRangeWithPartialEnd(
+	out: PassageSegment[],
+	humanOut: string[],
+	bookOsis: string,
+	bookName: string,
+	c1: number,
+	c2: number,
+	v2: number
+): void {
+	if (c1 > c2) return;
+	for (let c = c1; c <= c2 - 1; c++) pushFullChapter(out, humanOut, bookOsis, bookName, c);
+	if (validateChapter(bookOsis, c2)) pushVerseSpan(out, humanOut, bookOsis, bookName, c2, 1, v2);
 }
 
 export function parseReference(input: string): ParsedReference | null {
-	const raw = input.replace(/\u2013|\u2014/g, "-").trim();
+	const raw = input.replace(/–|—/g, "-").trim();
 	if (!raw) return null;
 	const parts = raw
 		.split(/\s*;\s*/)
@@ -61,67 +116,69 @@ export function parseReference(input: string): ParsedReference | null {
 		const m = matchBookPrefix(part);
 		if (!m) continue;
 		const book = m.book;
+		const partSegments: PassageSegment[] = [];
 		const partHuman: string[] = [];
 		let tail = part.slice(m.end).trim();
 		tail = tail.replace(/^[.,;:]+/, "").trim();
-		const chunks = tail
-			.split(/\s*,\s*/)
-			.map((c) => c.trim())
-			.filter(Boolean);
-		const partSegments: PassageSegment[] = [];
-		if (chunks.length === 0) {
-			const co = tail.match(CHAPTER_ONLY);
-			if (co) {
-				const ch = parseInt(co[1]!, 10);
-				if (validateChapter(book.osis, ch)) {
-					const vs = chapterVersesEnd(book.osis, ch);
-					partSegments.push({
-						bookOsis: book.osis,
-						chapter: ch,
-						verses: vs,
-					});
-					partHuman.push(`${book.name} ${ch} (chapter)`);
-				}
-			}
+
+		if (!tail) {
 			segments.push(...partSegments);
 			humanParts.push(...partHuman);
 			continue;
 		}
 
+		const chunks = tail
+			.split(/\s*,\s*/)
+			.map((c) => c.trim())
+			.filter(Boolean);
+
 		let currentChapter: number | null = null;
-		for (let i = 0; i < chunks.length; i++) {
-			const chunk = chunks[i]!;
-			const cv = parseChapterVerseChunk(chunk);
-			if (!cv) {
-				const co = chunk.match(CHAPTER_ONLY);
-				if (co) {
-					currentChapter = parseInt(co[1]!, 10);
+		let sawVerse = false;
+
+		for (const chunk of chunks) {
+			const cm = chunk.match(CHUNK_RE);
+			if (!cm) continue;
+			const a = parseInt(cm[1]!, 10);
+			const hasB = cm[2] !== undefined;
+			const b = hasB ? parseInt(cm[2]!, 10) : undefined;
+			const hasC = cm[3] !== undefined;
+			const c = hasC ? parseInt(cm[3]!, 10) : undefined;
+			const hasD = cm[4] !== undefined;
+			const d = hasD ? parseInt(cm[4]!, 10) : undefined;
+
+			if (hasB && hasC && hasD) {
+				pushCrossChapterRange(partSegments, partHuman, book.osis, book.name, a, b!, c!, d!);
+				currentChapter = c!;
+				sawVerse = true;
+			} else if (hasB && hasC) {
+				pushVerseSpan(partSegments, partHuman, book.osis, book.name, a, b!, c!);
+				currentChapter = a;
+				sawVerse = true;
+			} else if (hasB) {
+				pushVerseSpan(partSegments, partHuman, book.osis, book.name, a, b!, b!);
+				currentChapter = a;
+				sawVerse = true;
+			} else if (hasC && hasD) {
+				pushChapterRangeWithPartialEnd(partSegments, partHuman, book.osis, book.name, a, c!, d!);
+				currentChapter = c!;
+				sawVerse = true;
+			} else if (hasC) {
+				if (sawVerse && currentChapter !== null) {
+					pushVerseSpan(partSegments, partHuman, book.osis, book.name, currentChapter, a, c!);
+				} else {
+					pushChapterRange(partSegments, partHuman, book.osis, book.name, a, c!);
+					currentChapter = c!;
 				}
-				continue;
+			} else {
+				if (sawVerse && currentChapter !== null) {
+					pushVerseSpan(partSegments, partHuman, book.osis, book.name, currentChapter, a, a);
+				} else {
+					pushFullChapter(partSegments, partHuman, book.osis, book.name, a);
+					currentChapter = a;
+				}
 			}
-			const ch = cv.chapter;
-			if (!validateChapter(book.osis, ch)) continue;
-			currentChapter = ch;
-			const maxV = maxVerseForChapter(book.osis, ch);
-			const endV = Math.min(cv.span.end, maxV);
-			const startV = Math.min(cv.span.start, maxV);
-			partSegments.push({
-				bookOsis: book.osis,
-				chapter: ch,
-				verses: { start: startV, end: Math.max(startV, endV) },
-			});
-			partHuman.push(segmentHuman(book.name, ch, { start: startV, end: Math.max(startV, endV) }));
 		}
 
-		if (partSegments.length === 0 && currentChapter !== null && validateChapter(book.osis, currentChapter)) {
-			const vs = chapterVersesEnd(book.osis, currentChapter);
-			partSegments.push({
-				bookOsis: book.osis,
-				chapter: currentChapter,
-				verses: vs,
-			});
-			partHuman.push(`${book.name} ${currentChapter} (chapter)`);
-		}
 		segments.push(...partSegments);
 		humanParts.push(...partHuman);
 	}

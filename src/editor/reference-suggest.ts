@@ -11,6 +11,7 @@ import {
 } from "obsidian";
 import { parseReference, formatReferenceHuman } from "../reference/parser";
 import { fuzzyBooks } from "../reference/fuzzy";
+import { inlineRefRegex } from "../reference/regex";
 import type { ParsedReference } from "../reference/types";
 import { openExternalApp, buildBibliaWebUrl, buildOliveTreeUrl, buildYouVersionUrl, buildAccordanceUrl } from "../handoff/urls";
 import type ScriptoriumPlugin from "../main";
@@ -18,7 +19,8 @@ import { ensureHubNote } from "../vault/hub";
 
 export type SuggestionValue =
 	| { kind: "book"; display: string; insertText: string }
-	| { kind: "ref"; parsed: ParsedReference; insertText: string; label: string };
+	| { kind: "ref"; parsed: ParsedReference; insertText: string; label: string }
+	| { kind: "ambient"; parsed: ParsedReference; insertText: string; label: string };
 
 export class ReferenceSuggest extends EditorSuggest<SuggestionValue> {
 	constructor(app: App, public plugin: ScriptoriumPlugin) {
@@ -28,29 +30,59 @@ export class ReferenceSuggest extends EditorSuggest<SuggestionValue> {
 	onTrigger(
 		cursor: EditorPosition,
 		editor: Editor,
-		file: TFile | null
+		_file: TFile | null
 	): EditorSuggestTriggerInfo | null {
 		const trigger = this.plugin.settings.suggestTrigger;
-		if (!trigger) return null;
 		const line = editor.getLine(cursor.line);
 		const before = line.slice(0, cursor.ch);
-		const idx = before.lastIndexOf(trigger);
-		if (idx === -1) return null;
-		if (idx > 0) {
-			const prev = before[idx - 1];
-			if (prev !== " " && prev !== "\t") return null;
+
+		if (trigger) {
+			const idx = before.lastIndexOf(trigger);
+			if (idx !== -1) {
+				const prev = idx > 0 ? before[idx - 1] : undefined;
+				if (idx === 0 || prev === " " || prev === "\t") {
+					const from = idx + trigger.length;
+					return {
+						start: { line: cursor.line, ch: idx },
+						end: cursor,
+						query: before.slice(from),
+					};
+				}
+			}
 		}
-		const from = idx + trigger.length;
-		const query = before.slice(from);
-		return {
-			start: { line: cursor.line, ch: idx },
-			end: cursor,
-			query,
-		};
+
+		if (this.plugin.settings.ambientSuggest) {
+			const tail = matchTrailingRef(before);
+			if (tail) {
+				return {
+					start: { line: cursor.line, ch: tail.start },
+					end: cursor,
+					query: `~ambient~${tail.text}`,
+				};
+			}
+		}
+
+		return null;
 	}
 
 	getSuggestions(context: EditorSuggestContext): SuggestionValue[] {
-		const q = context.query.trim();
+		const raw = context.query;
+		if (raw.startsWith("~ambient~")) {
+			const slice = raw.slice("~ambient~".length);
+			const parsed = parseReference(slice);
+			if (!parsed) return [];
+			const label = formatReferenceHuman(parsed.segments);
+			return [
+				{
+					kind: "ambient",
+					parsed,
+					label,
+					insertText: this.buildInsert(label, parsed),
+				},
+			];
+		}
+
+		const q = raw.trim();
 		if (!q) {
 			return fuzzyBooks("", 15).map((m) => ({
 				kind: "book",
@@ -107,35 +139,26 @@ export class ReferenceSuggest extends EditorSuggest<SuggestionValue> {
 		}
 		el.createDiv({ text: value.label });
 		const sub = el.createEl("small");
-		sub.setText("Insert linked reference");
+		sub.setText(value.kind === "ambient" ? "Linkify reference (ambient)" : "Insert linked reference");
 	}
 
 	selectSuggestion(value: SuggestionValue, _evt: MouseEvent | KeyboardEvent): void {
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		const editor = view?.editor;
-		if (!editor) return;
+		const ctx = this.context;
+		if (!editor || !ctx) return;
+
 		if (value.kind === "book") {
-			const cursor = editor.getCursor();
-			const line = editor.getLine(cursor.line);
-			const trigger = this.plugin.settings.suggestTrigger;
-			const before = line.slice(0, cursor.ch);
-			const idx = before.lastIndexOf(trigger);
-			if (idx === -1) return;
-			const from = idx + trigger.length;
-			editor.replaceRange(value.insertText, { line: cursor.line, ch: from }, cursor);
+			editor.replaceRange(value.insertText, ctx.start, ctx.end);
 			if (this.plugin.settings.suggestAriaHints) {
 				const live = document.getElementById("scriptorium-aria-live");
 				if (live) live.textContent = `Selected book ${value.display}`;
 			}
 			return;
 		}
-		const cursor = editor.getCursor();
-		const line = editor.getLine(cursor.line);
-		const trigger = this.plugin.settings.suggestTrigger;
-		const before = line.slice(0, cursor.ch);
-		const idx = before.lastIndexOf(trigger);
-		if (idx === -1) return;
-		editor.replaceRange(value.insertText + " ", { line: cursor.line, ch: idx }, cursor);
+
+		const tail = value.kind === "ambient" ? "" : " ";
+		editor.replaceRange(value.insertText + tail, ctx.start, ctx.end);
 		if (this.plugin.settings.openApp === "logos_uri") {
 			void ensureHubNote(
 				this.app,
@@ -151,4 +174,22 @@ export class ReferenceSuggest extends EditorSuggest<SuggestionValue> {
 			if (live) live.textContent = value.label;
 		}
 	}
+}
+
+/**
+ * Find the longest valid reference at the end of `before`. The match must end
+ * exactly at the cursor (no trailing chars), so we don't fire on every keystroke.
+ */
+function matchTrailingRef(before: string): { start: number; text: string } | null {
+	const re = inlineRefRegex("g");
+	let last: { start: number; end: number; text: string } | null = null;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(before)) !== null) {
+		const slice = m[1]!;
+		last = { start: m.index, end: m.index + slice.length, text: slice };
+	}
+	if (!last) return null;
+	if (last.end !== before.length) return null;
+	if (!parseReference(last.text)) return null;
+	return { start: last.start, text: last.text };
 }

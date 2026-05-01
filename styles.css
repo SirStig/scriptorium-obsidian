@@ -7,19 +7,94 @@
 	display: inline;
 }
 
+.scriptorium-ref-anchor {
+	cursor: pointer;
+}
+
 .scriptorium-ref-pop {
-	position: absolute;
-	z-index: 50;
-	max-width: 28rem;
-	padding: 0.5rem 0.65rem;
-	margin-top: 0.25rem;
+	max-width: 32rem;
+	min-width: 14rem;
+	padding: 0.55rem 0.75rem;
 	font-size: var(--font-ui-smaller);
-	line-height: 1.35;
+	line-height: 1.4;
 	color: var(--text-normal);
 	background: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: var(--radius-m);
-	box-shadow: var(--shadow-s);
+	box-shadow: var(--shadow-l);
+	white-space: pre-wrap;
+	pointer-events: auto;
+}
+
+.scriptorium-ref-pop-wrap {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.scriptorium-ref-pop-body {
+	max-height: 16rem;
+	overflow: auto;
+}
+
+.scriptorium-ref-pop-attr {
+	margin-top: 0.2rem;
+	padding-top: 0.4rem;
+	font-size: 0.85em;
+	color: var(--text-muted);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.scriptorium-ref-pop-actions {
+	display: flex;
+	gap: 0.25rem;
+	flex-wrap: wrap;
+	padding-top: 0.4rem;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.scriptorium-ref-pop-btn {
+	font-size: var(--font-ui-smaller);
+	padding: 0.2rem 0.55rem;
+	border-radius: var(--radius-s);
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+}
+
+.scriptorium-ref-pop-btn:hover {
+	background: var(--interactive-hover);
+}
+
+.scriptorium-selection-bubble {
+	display: flex;
+	gap: 0.25rem;
+	padding: 0.3rem;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	box-shadow: var(--shadow-l);
+	font-size: var(--font-ui-smaller);
+}
+
+.scriptorium-selection-btn {
+	padding: 0.2rem 0.55rem;
+	border-radius: var(--radius-s);
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+}
+
+.scriptorium-selection-btn:hover {
+	background: var(--interactive-hover);
+}
+
+.scriptorium-settings-help {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	margin-bottom: 0.5rem;
 }
 
 .scriptorium-strong {
@@ -44,9 +119,45 @@
 	margin-bottom: 0.5rem;
 }
 
+.scriptorium-passage-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	margin-bottom: 0.4rem;
+}
+
+.scriptorium-passage-pin {
+	font-size: var(--font-ui-smaller);
+	padding: 0.15rem 0.5rem;
+	border-radius: var(--radius-s);
+}
+
+.scriptorium-passage-pin[aria-pressed="true"] {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
 .scriptorium-callout-enriched {
 	padding: 0.35rem 0.5rem;
 	border-radius: var(--radius-s);
 	background: var(--background-secondary);
 }
 
+.scriptorium-statusbar {
+	font-size: var(--font-ui-smaller);
+}
+
+/* Section colors — tinted dashed underlines so refs are visually grouped by canon section */
+.scriptorium-section-pentateuch     { border-bottom-color: #c98a3c; }
+.scriptorium-section-history        { border-bottom-color: #b8742a; }
+.scriptorium-section-wisdom         { border-bottom-color: #2f8a8a; }
+.scriptorium-section-major-prophets { border-bottom-color: #6a4dbd; }
+.scriptorium-section-minor-prophets { border-bottom-color: #8e6cd0; }
+.scriptorium-section-gospels        { border-bottom-color: #2e7d32; }
+.scriptorium-section-acts           { border-bottom-color: #4ca150; }
+.scriptorium-section-paulines       { border-bottom-color: #1565c0; }
+.scriptorium-section-general        { border-bottom-color: #2e80c4; }
+.scriptorium-section-apocalypse     { border-bottom-color: #b71c1c; }
+.scriptorium-section-deutero        { border-bottom-color: #6d6d6d; }
+.scriptorium-section-unknown        { border-bottom-color: var(--text-accent); }
