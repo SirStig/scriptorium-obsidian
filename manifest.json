@@ -6,6 +6,5 @@
 	"description": "Scripture reference parsing, hover & selection actions, app handoffs, free Bible text out of the box, hub notes, study-note types, and Greek/Hebrew helpers.",
 	"author": "SirStig",
 	"authorUrl": "https://github.com/SirStig",
-	"isDesktopOnly": false,
-	"css": "styles.css"
+	"isDesktopOnly": false
 }
