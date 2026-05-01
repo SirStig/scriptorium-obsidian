@@ -7,6 +7,7 @@ main.js.map
 *.js.map
 dist/
 build/
+release/
 
 # Test / coverage
 coverage/
