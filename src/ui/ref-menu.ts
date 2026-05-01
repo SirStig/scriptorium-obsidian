@@ -9,6 +9,7 @@ import {
 	buildYouVersionUrl,
 	buildAccordanceUrl,
 } from "../handoff/urls";
+import { openUrlExternally } from "../handoff/open-external";
 import { hubRelPath } from "../vault/hub-paths";
 import { ensureHubNote } from "../vault/hub";
 import { linkRefsInMarkdown } from "../vault/link-refs";
@@ -62,7 +63,7 @@ export function buildRefMenu(menu: Menu, ctx: MenuContext): void {
 			item
 				.setTitle(`Open in ${alt.label}`)
 				.setIcon("external-link")
-				.onClick(() => window.open(alt.url, "_blank"))
+				.onClick(() => openUrlExternally(alt.url))
 		);
 	}
 
@@ -160,7 +161,7 @@ function appLabel(id: string): string {
 		case "accordance":
 			return "Accordance";
 		case "logos_uri":
-			return "Logos (paste URI)";
+			return "Logos";
 		case "none":
 			return "browser fallback";
 		default:

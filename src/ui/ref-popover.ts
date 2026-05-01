@@ -5,15 +5,11 @@ import { ensureHubNote } from "../vault/hub";
 import { buildRefMenu } from "./ref-menu";
 import type ScriptoriumPlugin from "../main";
 
-/**
- * Build the popover DOM for a parsed reference. Includes:
- *   - Passage text + attribution (loaded from the active provider)
- *   - A compact action button strip (always shown, even when no provider)
- */
 function buildPopoverContent(
 	plugin: ScriptoriumPlugin,
 	parsed: ParsedReference,
-	matchedText: string
+	matchedText: string,
+	onMoreActions: (e: MouseEvent) => void
 ): HTMLElement {
 	const seg = parsed.segments[0]!;
 	const wrap = document.createElement("div");
@@ -79,11 +75,7 @@ function buildPopoverContent(
 		void navigator.clipboard.writeText(toNumericOsisString(parsed.segments));
 		new Notice("Copied OSIS id");
 	});
-	btn("⋯", "More actions", (e) => {
-		const menu = new Menu();
-		buildRefMenu(menu, { plugin, parsed, matchedText });
-		menu.showAtMouseEvent(e);
-	});
+	btn("⋯", "More actions", (e) => onMoreActions(e));
 
 	return wrap;
 }
@@ -121,6 +113,8 @@ function reposition(pop: HTMLElement, anchor: DOMRect): void {
  * Returned object has a `close` method; popover also auto-closes on outside
  * click, Escape, or when the cursor leaves both the anchor and the popover.
  */
+let popSequence = 0;
+
 export function openRefPopover(
 	plugin: ScriptoriumPlugin,
 	anchor: HTMLElement,
@@ -128,14 +122,27 @@ export function openRefPopover(
 	matchedText: string
 ): PopoverState {
 	closeActivePopover();
+	const popId = `scriptorium-ref-pop-${++popSequence}`;
 	const pop = document.createElement("div");
+	pop.id = popId;
 	pop.className = "scriptorium-ref-pop";
 	pop.setAttribute("role", "tooltip");
 	pop.style.position = "fixed";
 	pop.style.zIndex = "9999";
 	pop.style.visibility = "hidden";
-	pop.appendChild(buildPopoverContent(plugin, parsed, matchedText));
+	const closer = { fn: (): void => {} };
+	pop.appendChild(
+		buildPopoverContent(plugin, parsed, matchedText, (e) => {
+			const menu = new Menu();
+			buildRefMenu(menu, { plugin, parsed, matchedText });
+			closer.fn();
+			menu.showAtMouseEvent(e);
+		})
+	);
 	document.body.appendChild(pop);
+
+	const prevDescribedBy = anchor.getAttribute("aria-describedby");
+	anchor.setAttribute("aria-describedby", popId);
 
 	let leaveTimer = 0;
 	const onAnchorLeave = (e: MouseEvent): void => {
@@ -156,12 +163,16 @@ export function openRefPopover(
 	const onOutsideClick = (e: MouseEvent): void => {
 		const t = e.target as Node;
 		if (pop.contains(t) || anchor.contains(t)) return;
+		if ((t as Element).closest?.(".menu")) return;
 		close();
 	};
 	const onKey = (e: KeyboardEvent): void => {
 		if (e.key === "Escape") close();
 	};
-	const onScroll = (): void => close();
+	const onScroll = (e: Event): void => {
+		if (pop.contains(e.target as Node)) return;
+		close();
+	};
 
 	anchor.addEventListener("mouseleave", onAnchorLeave);
 	pop.addEventListener("mouseleave", onPopLeave);
@@ -178,9 +189,13 @@ export function openRefPopover(
 		document.removeEventListener("click", onOutsideClick, true);
 		document.removeEventListener("keydown", onKey, true);
 		window.removeEventListener("scroll", onScroll, true);
+		if (prevDescribedBy === null) anchor.removeAttribute("aria-describedby");
+		else anchor.setAttribute("aria-describedby", prevDescribedBy);
 		pop.remove();
 		if (activePopover?.pop === pop) activePopover = null;
 	};
+
+	closer.fn = close;
 
 	const state: PopoverState = { pop, close };
 	activePopover = state;

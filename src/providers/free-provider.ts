@@ -15,13 +15,18 @@ import type { PassageTextResult, TextProvider } from "./types";
  * https://bible-api.com — terms allow free use; attribution returned in
  * `translation_name` and we surface that in `attribution`.
  */
+type CacheLike = {
+	get(key: string): { text: string; attribution?: string } | undefined;
+	set(key: string, entry: { text: string; attribution?: string }): void;
+};
+
 export class FreeBibleProvider implements TextProvider {
 	id = "free_bible";
 
 	constructor(
 		private translation: string,
 		private allowNetwork: boolean,
-		private cache: Map<string, { text: string; attribution?: string }>
+		private cache: CacheLike
 	) {}
 
 	async getPassage(seg: PassageSegment): Promise<PassageTextResult | null> {

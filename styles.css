@@ -11,6 +11,119 @@
 	cursor: pointer;
 }
 
+.scriptorium-ref-anchor:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+.scriptorium-ref-pop-btn:focus-visible,
+.scriptorium-selection-btn:focus-visible,
+.scriptorium-settings-nav-btn:focus-visible,
+.scriptorium-passage-pin:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 1px;
+}
+
+@media (prefers-contrast: more) {
+	.scriptorium-ref-pop {
+		border-width: 2px;
+	}
+
+	.scriptorium-scripture-ref {
+		border-bottom-width: 2px;
+	}
+}
+
+/* Studio note types — top bar on reading-mode rendering */
+.scriptorium-studio-bar {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: -0.5rem -0.5rem 0.75rem -0.5rem;
+	padding: 0.4rem 0.75rem;
+	border-radius: var(--radius-m) var(--radius-m) 0 0;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-on-accent);
+}
+
+.scriptorium-studio-bar[data-study-type="sermon"]       { background: #b8742a; }
+.scriptorium-studio-bar[data-study-type="inductive"]    { background: #2f8a8a; }
+.scriptorium-studio-bar[data-study-type="word-study"]   { background: #6a4dbd; }
+.scriptorium-studio-bar[data-study-type="exegetical"]   { background: #1565c0; }
+.scriptorium-studio-bar[data-study-type="lectio"]       { background: #2e7d32; }
+.scriptorium-studio-bar[data-study-type="manuscript"]   { background: #6d6d6d; }
+.scriptorium-studio-bar[data-study-type="reading-plan"] { background: #4ca150; }
+
+/* Sermon callouts — distinct icons + tints */
+.callout[data-callout="sermon-bigidea"] {
+	--callout-color: 184, 116, 42;
+	--callout-icon: lucide-lightbulb;
+}
+
+.callout[data-callout="sermon-application"] {
+	--callout-color: 46, 125, 50;
+	--callout-icon: lucide-target;
+}
+
+.callout[data-callout="sermon-illustration"] {
+	--callout-color: 21, 101, 192;
+	--callout-icon: lucide-image;
+}
+
+.callout[data-callout="sermon-question"] {
+	--callout-color: 106, 77, 189;
+	--callout-icon: lucide-help-circle;
+}
+
+/* Studio creation modal */
+.scriptorium-studio-modal {
+	max-width: 720px;
+}
+
+.scriptorium-studio-types {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: 0.5rem;
+	margin: 0.6rem 0 1rem;
+}
+
+.scriptorium-studio-type-card {
+	padding: 0.6rem 0.75rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	cursor: pointer;
+	background: var(--background-secondary);
+	transition: background 0.1s, border-color 0.1s;
+}
+
+.scriptorium-studio-type-card:hover {
+	background: var(--background-modifier-hover);
+}
+
+.scriptorium-studio-type-card.is-selected {
+	border-color: var(--interactive-accent);
+	background: var(--background-modifier-active);
+}
+
+.scriptorium-studio-type-card strong {
+	display: block;
+	margin-bottom: 0.2rem;
+}
+
+.scriptorium-studio-type-card p {
+	margin: 0;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+.scriptorium-studio-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	margin-top: 1rem;
+}
+
 .scriptorium-ref-pop {
 	max-width: 32rem;
 	min-width: 14rem;
@@ -95,6 +208,88 @@
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 	margin-bottom: 0.5rem;
+}
+
+.scriptorium-settings-header h2 {
+	margin-bottom: 0.2rem;
+}
+
+.scriptorium-settings-tagline {
+	margin-top: 0;
+	margin-bottom: 1rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.scriptorium-settings-search {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	padding: 0.5rem 0;
+	background: var(--background-primary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin-bottom: 0.5rem;
+}
+
+.scriptorium-settings-search input {
+	width: 100%;
+	padding: 0.4rem 0.6rem;
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-primary);
+}
+
+.scriptorium-settings-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem;
+	margin-bottom: 0.8rem;
+}
+
+.scriptorium-settings-nav-btn {
+	font-size: var(--font-ui-smaller);
+	padding: 0.25rem 0.65rem;
+	border-radius: var(--radius-s);
+	background: var(--interactive-normal);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+}
+
+.scriptorium-settings-nav-btn:hover {
+	background: var(--interactive-hover);
+}
+
+.scriptorium-settings-section {
+	margin-bottom: 1.5rem;
+	scroll-margin-top: 4rem;
+}
+
+.scriptorium-settings-section-title {
+	margin-bottom: 0.2rem;
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding-bottom: 0.3rem;
+}
+
+.scriptorium-settings-section-helper {
+	margin-top: 0;
+	margin-bottom: 0.8rem;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.scriptorium-settings-parser-out {
+	margin-top: 0.4rem;
+	padding: 0.35rem 0.55rem;
+	background: var(--background-secondary);
+	border-radius: var(--radius-s);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	min-height: 1.4em;
+}
+
+.scriptorium-parser-empty {
+	color: var(--text-muted);
 }
 
 .scriptorium-strong {

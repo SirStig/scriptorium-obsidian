@@ -1,7 +1,8 @@
-import { Menu, type MarkdownPostProcessorContext } from "obsidian";
+import { Menu, TFile, type MarkdownPostProcessorContext } from "obsidian";
 import { parseReference } from "../reference/parser";
 import { inlineRefRegex } from "../reference/regex";
 import { findStrongsTokens, formatStrongsUrl } from "../study/strongs";
+import { lookupStrongs } from "../study/strongs-data";
 import { attachRefPopover } from "../ui/ref-popover";
 import { buildRefMenu } from "../ui/ref-menu";
 import { sectionClassFor } from "../ui/section-styles";
@@ -104,10 +105,15 @@ function wrapTextNode(node: Text, plugin: ScriptoriumPlugin): void {
 		} else {
 			const kind = e.payload[0] === "G" ? "G" : "H";
 			const num = e.payload.slice(1);
+			const entry = lookupStrongs(kind, num);
 			const a = document.createElement("a");
 			a.textContent = e.payload;
 			a.className = "scriptorium-strong";
 			a.href = "#";
+			if (entry) {
+				a.title = `${entry.lemma} (${entry.translit}) — ${entry.gloss}`;
+				a.setAttribute("aria-label", `${e.payload}: ${entry.lemma} ${entry.translit} — ${entry.gloss}`);
+			}
 			a.addEventListener("click", (ev) => {
 				ev.preventDefault();
 				window.open(
@@ -149,9 +155,55 @@ function walk(el: Element, plugin: ScriptoriumPlugin): void {
 	}
 }
 
+const STUDY_TYPE_LABELS: Record<string, string> = {
+	sermon: "Sermon",
+	inductive: "Inductive Bible study",
+	"word-study": "Word study",
+	exegetical: "Exegetical paper",
+	lectio: "Lectio Divina",
+	manuscript: "Manuscript study",
+	"reading-plan": "Reading plan",
+};
+
+function applyStudioChrome(
+	el: HTMLElement,
+	ctx: MarkdownPostProcessorContext,
+	plugin: ScriptoriumPlugin
+): void {
+	// Only run on the first block of a note (post-processors are called per
+	// rendered block; we use the source-path lookup to read frontmatter).
+	if (el.querySelector(".scriptorium-studio-bar")) return;
+	const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
+	if (!(file instanceof TFile)) return;
+	const cache = plugin.app.metadataCache.getFileCache(file);
+	const fm = cache?.frontmatter as Record<string, unknown> | undefined;
+	const type = typeof fm?.type === "string" ? (fm.type as string) : "";
+	if (!STUDY_TYPE_LABELS[type]) return;
+
+	// Only inject the bar onto the first H1 we see (so it visually replaces the title).
+	const firstH1 = el.querySelector("h1");
+	if (!firstH1 || firstH1.previousSibling) return;
+
+	const bar = document.createElement("div");
+	bar.className = "scriptorium-studio-bar";
+	bar.dataset.studyType = type;
+	bar.textContent = STUDY_TYPE_LABELS[type] ?? type;
+	const date = typeof fm?.date === "string" ? fm.date : "";
+	if (date) {
+		const sep = document.createElement("span");
+		sep.textContent = " · ";
+		bar.appendChild(sep);
+		const dateEl = document.createElement("span");
+		dateEl.textContent = date;
+		bar.appendChild(dateEl);
+	}
+	firstH1.parentElement?.insertBefore(bar, firstH1);
+}
+
 export function registerReadingModeProcessors(plugin: ScriptoriumPlugin): void {
 	plugin.registerMarkdownPostProcessor(
-		(el, _ctx: MarkdownPostProcessorContext) => {
+		(el, ctx: MarkdownPostProcessorContext) => {
+			applyStudioChrome(el, ctx, plugin);
 			if (!plugin.settings.readingProcessRefs && !plugin.settings.scriptureCallouts) return;
 			walk(el, plugin);
 		},

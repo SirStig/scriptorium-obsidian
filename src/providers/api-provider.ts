@@ -3,6 +3,11 @@ import type { PassageSegment } from "../reference/types";
 import { toApiBibleUsfmSeg } from "../reference/osis";
 import type { PassageTextResult, TextProvider } from "./types";
 
+type CacheLike = {
+	get(key: string): { text: string; attribution?: string } | undefined;
+	set(key: string, entry: { text: string; attribution?: string }): void;
+};
+
 export class ApiBibleTextProvider implements TextProvider {
 	id = "api_bible";
 
@@ -10,7 +15,7 @@ export class ApiBibleTextProvider implements TextProvider {
 		private apiKey: string,
 		private translationId: string,
 		private allowNetwork: boolean,
-		private cache: Map<string, { text: string; attribution?: string }>
+		private cache: CacheLike
 	) {}
 
 	async getPassage(seg: PassageSegment): Promise<PassageTextResult | null> {

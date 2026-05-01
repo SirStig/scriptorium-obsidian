@@ -15,22 +15,28 @@ import { buildRefMenu } from "./ui/ref-menu";
 import { SelectionBubble } from "./ui/selection-bubble";
 import { RefHoverDelegate } from "./ui/hover-delegate";
 import { BiblePickerModal } from "./ui/bible-picker";
+import { StudyNoteCreateModal } from "./studio/create-modal";
+import { exportToSlides } from "./studio/slide-export";
+import { indexPassagesInFrontmatter } from "./studio/index-passages";
 import { registerReadingModeProcessors } from "./reading/postprocess";
 import { parseReference } from "./reference/parser";
 import { toNumericOsisString } from "./reference/osis";
 import { configureCanon } from "./reference/books";
 import { setOsisCompactExtras } from "./reference/osis";
 import { openExternalApp, LOGOS_URI_PATTERN } from "./handoff/urls";
+import { openUrlExternally } from "./handoff/open-external";
 import type { HandoffOpts } from "./handoff/types";
 import { normalizePastedText, linkifyPastedText } from "./handoff/paste";
 import { NoneTextProvider, type TextProvider } from "./providers/types";
 import { VaultFolderTextProvider } from "./providers/vault-provider";
 import { ApiBibleTextProvider } from "./providers/api-provider";
 import { FreeBibleProvider } from "./providers/free-provider";
+import { EsvTextProvider } from "./providers/esv-provider";
 import { pickTextProvider } from "./providers/registry";
+import { PersistentTextCache, CACHE_VERSION } from "./providers/cache";
 import { PassagePaneView, PASSAGE_VIEW_TYPE } from "./ui/passage-view";
 import { parseLectionaryCsv, rowForDate, type LectionaryRow } from "./pedagogy/lectionary";
-import { BUILTIN_PERICOPES, type PericopeEntry } from "./pedagogy/pericopes";
+import { getActivePericopes, setUserPericopes, type PericopeEntry } from "./pedagogy/pericopes";
 import { openGreekPicker, openHebrewPicker } from "./study/greek-insert";
 import type { Extension } from "@codemirror/state";
 import { ensureHubNote } from "./vault/hub";
@@ -44,12 +50,16 @@ export default class ScriptoriumPlugin extends Plugin {
 	vaultProvider: VaultFolderTextProvider | null = null;
 	freeProvider: FreeBibleProvider | null = null;
 	apiProvider: ApiBibleTextProvider | null = null;
-	apiResponseCache = new Map<string, { text: string; attribution?: string }>();
+	esvProvider: EsvTextProvider | null = null;
+	apiResponseCache: PersistentTextCache = new PersistentTextCache(
+		(entries) => this.persistCache(entries)
+	);
 	lectionaryRows: LectionaryRow[] = [];
 	ribbonEl: HTMLElement | null = null;
 	statusBarEl: HTMLElement | null = null;
 	selectionBubble: SelectionBubble | null = null;
 	hoverDelegate: RefHoverDelegate | null = null;
+	studyNoteRibbonEl: HTMLElement | null = null;
 
 	reconcileSuggestTrigger(v: string): void {
 		const t = v.trim();
@@ -65,17 +75,35 @@ export default class ScriptoriumPlugin extends Plugin {
 			scheme: this.settings.olivetreeScheme,
 			translation: this.settings.bibliaTranslation,
 			youVersionId: this.settings.youVersionBibleId,
+			logosResourceAlias: this.settings.logosResourceAlias,
+			logosRefPrefix: this.settings.logosRefPrefix,
 		};
 	}
 
 	async loadSettings(): Promise<void> {
-		const data = (await this.loadData()) as Partial<ScriptoriumSettings> & { customAliases?: unknown } | undefined;
+		const data = (await this.loadData()) as
+			| (Partial<ScriptoriumSettings> & {
+					customAliases?: unknown;
+					_textCache?: unknown;
+			  })
+			| undefined;
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
 		if (!this.settings.customAliases || typeof this.settings.customAliases !== "object") {
 			this.settings.customAliases = {};
 		}
 		this.reconcileSuggestTrigger(this.settings.suggestTrigger);
 		this.applyCanonAndAliases();
+		// Hydrate the persistent text-provider cache.
+		this.apiResponseCache.hydrate(data?._textCache);
+	}
+
+	private async persistCache(entries: [string, { text: string; attribution?: string }][]): Promise<void> {
+		// Co-locate cache with settings under a reserved key. saveData replaces
+		// the entire payload, so we must save settings + cache together.
+		const payload = Object.assign({}, this.settings, {
+			_textCache: { v: CACHE_VERSION, entries },
+		});
+		await this.saveData(payload);
 	}
 
 	applyCanonAndAliases(): void {
@@ -84,7 +112,12 @@ export default class ScriptoriumPlugin extends Plugin {
 	}
 
 	async saveSettings(): Promise<void> {
-		await this.saveData(this.settings);
+		// Co-save current cache snapshot so saveData doesn't trash it.
+		const cacheEntries = Array.from(this.apiResponseCache.asMap().entries());
+		const payload = Object.assign({}, this.settings, {
+			_textCache: { v: CACHE_VERSION, entries: cacheEntries },
+		});
+		await this.saveData(payload);
 		this.refreshProviders();
 		this.applyCanonAndAliases();
 		this.refreshStatusBar();
@@ -103,10 +136,16 @@ export default class ScriptoriumPlugin extends Plugin {
 			this.settings.allowNetwork,
 			this.apiResponseCache
 		);
+		this.esvProvider = new EsvTextProvider(
+			this.settings.esvApiKey,
+			this.settings.allowNetwork,
+			this.apiResponseCache
+		);
 	}
 
 	pickProvider(): TextProvider {
-		const networkOnly = this.settings.textProvider === "api_bible" || this.settings.textProvider === "free_bible";
+		const mode = this.settings.textProvider;
+		const networkOnly = mode === "api_bible" || mode === "free_bible" || mode === "esv";
 		if (!this.settings.allowNetwork && networkOnly) {
 			return this.noneProvider;
 		}
@@ -115,6 +154,7 @@ export default class ScriptoriumPlugin extends Plugin {
 			this.vaultProvider,
 			this.freeProvider,
 			this.apiProvider,
+			this.esvProvider,
 			this.settings.textProvider
 		);
 	}
@@ -138,9 +178,11 @@ export default class ScriptoriumPlugin extends Plugin {
 					? `Free (${(this.settings.freeBibleTranslation || "web").toUpperCase()})`
 					: mode === "api_bible"
 						? "API.Bible"
-						: "Refs only";
+						: mode === "esv"
+							? "ESV"
+							: "Refs only";
 		const net = this.settings.allowNetwork ? "online" : "offline";
-		const networkBound = mode === "api_bible" || mode === "free_bible";
+		const networkBound = mode === "api_bible" || mode === "free_bible" || mode === "esv";
 		const showNet = networkBound || !this.settings.allowNetwork;
 		this.statusBarEl.setText(`Scriptorium · ${provider}${showNet ? ` · ${net}` : ""}`);
 		this.statusBarEl.setAttr(
@@ -150,9 +192,18 @@ export default class ScriptoriumPlugin extends Plugin {
 	}
 
 	refreshRibbon(): void {
+		if (this.studyNoteRibbonEl) {
+			this.studyNoteRibbonEl.remove();
+			this.studyNoteRibbonEl = null;
+		}
 		if (this.ribbonEl) {
 			this.ribbonEl.remove();
 			this.ribbonEl = null;
+		}
+		if (this.settings.showStudyNoteRibbon) {
+			this.studyNoteRibbonEl = this.addRibbonIcon("file-plus", "New study note", () => {
+				new StudyNoteCreateModal(this.app, this).open();
+			});
 		}
 		if (this.settings.showPassageRibbon) {
 			this.ribbonEl = this.addRibbonIcon("book-open", "Scriptorium passage pane", () => {
@@ -192,6 +243,31 @@ export default class ScriptoriumPlugin extends Plugin {
 		this.lectionaryRows = parseLectionaryCsv(text);
 	}
 
+	async loadPericopesFromNote(): Promise<void> {
+		const p = this.settings.pericopesNotePath;
+		if (!p) {
+			setUserPericopes([]);
+			return;
+		}
+		const f = this.app.vault.getAbstractFileByPath(p);
+		if (!(f instanceof TFile)) {
+			setUserPericopes([]);
+			return;
+		}
+		const text = await this.app.vault.read(f);
+		const block = text.match(/```json\s*([\s\S]*?)```/i);
+		if (!block?.[1]) {
+			setUserPericopes([]);
+			return;
+		}
+		try {
+			const data = JSON.parse(block[1]) as PericopeEntry[];
+			if (Array.isArray(data)) setUserPericopes(data);
+		} catch {
+			new Notice("Could not parse pericope pack JSON");
+		}
+	}
+
 	async loadAliasesFromNote(): Promise<void> {
 		const p = this.settings.customAliasesNotePath;
 		if (!p) return;
@@ -220,6 +296,7 @@ export default class ScriptoriumPlugin extends Plugin {
 		await this.loadSettings();
 		await this.loadLectionary();
 		await this.loadAliasesFromNote();
+		await this.loadPericopesFromNote();
 		this.refreshProviders();
 		this.registerEditorExtension(this.cmExtras);
 		this.refreshEditorExtensions();
@@ -468,6 +545,61 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "scriptorium-new-study-note",
+			name: "Scriptorium: New study note (sermon, inductive, word study, …)",
+			callback: () => {
+				new StudyNoteCreateModal(this.app, this).open();
+			},
+		});
+
+		this.addCommand({
+			id: "scriptorium-export-slides",
+			name: "Scriptorium: Export current note as slide outline",
+			editorCheckCallback: (checking, editor, ctx) => {
+				const file = ctx.file;
+				if (!file) return false;
+				if (checking) return true;
+				const body = editor.getValue();
+				const slides = exportToSlides(body, { slideLevel: 2 });
+				const dir = file.parent?.path ?? "";
+				const stem = file.basename;
+				const slidesPath = (dir ? `${dir}/` : "") + `${stem}.slides.md`;
+				const existing = this.app.vault.getAbstractFileByPath(slidesPath);
+				const promise = existing instanceof TFile
+					? this.app.vault.modify(existing, slides)
+					: this.app.vault.create(slidesPath, slides);
+				void promise.then(() => {
+					new Notice(`Wrote ${slidesPath}`);
+					void this.app.workspace.openLinkText(slidesPath, "", true);
+				});
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: "scriptorium-index-passages",
+			name: "Scriptorium: Index passages in this note's frontmatter",
+			editorCheckCallback: (checking, editor, ctx) => {
+				const file = ctx.file;
+				if (!file) return false;
+				if (checking) return true;
+				const body = editor.getValue();
+				const next = indexPassagesInFrontmatter(body);
+				if (next === null) {
+					new Notice("No 'passages:' frontmatter list found.");
+					return true;
+				}
+				if (next === body) {
+					new Notice("Passages already indexed.");
+					return true;
+				}
+				editor.setValue(next);
+				new Notice("Resolved passages → frontmatter passages_resolved");
+				return true;
+			},
+		});
+
+		this.addCommand({
 			id: "scriptorium-switch-translation",
 			name: "Scriptorium: Switch translation for current provider",
 			callback: async () => {
@@ -538,12 +670,22 @@ export default class ScriptoriumPlugin extends Plugin {
 	openParsed(parsed: ReturnType<typeof parseReference>): void {
 		if (!parsed?.segments[0]) return;
 		const seg = parsed.segments[0]!;
-		const url =
-			openExternalApp(this.settings.openApp, this.handoffOpts(), seg) ??
-			`https://biblia.com/bible/${encodeURIComponent(this.settings.bibliaTranslation)}/${
-				seg.bookOsis
-			}.${seg.chapter}.${seg.verses.start}`;
-		window.open(url);
+		const primary = openExternalApp(this.settings.openApp, this.handoffOpts(), seg);
+		if (primary) {
+			openUrlExternally(primary);
+			return;
+		}
+		if (this.settings.openApp === "none") return;
+		if (this.settings.openApp === "logos_uri") {
+			new Notice(
+				"Logos: add Resource alias + Ref prefix in Scriptorium settings (see Logos ‘Copy location’ link), or paste a logosres: URI."
+			);
+			return;
+		}
+		const fallback = `https://biblia.com/bible/${encodeURIComponent(this.settings.bibliaTranslation)}/${
+			seg.bookOsis
+		}.${seg.chapter}.${seg.verses.start}`;
+		openUrlExternally(fallback);
 	}
 }
 
@@ -558,7 +700,7 @@ class PericopePickModal extends SuggestModal<PericopeEntry> {
 
 	getSuggestions(query: string): PericopeEntry[] {
 		const q = query.toLowerCase();
-		return BUILTIN_PERICOPES.filter(
+		return getActivePericopes().filter(
 			(p) => !q || p.title.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)
 		);
 	}

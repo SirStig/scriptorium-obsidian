@@ -1,27 +1,63 @@
 # Scriptorium
 
-A Bible-study toolkit for Obsidian. Type a reference like `John 3:16` or `1 Cor 13:4-7` anywhere in your notes and Scriptorium will recognize it, highlight it, hover-preview it, link it to a hub note in your vault, and (one click later) jump straight to it in Olive Tree, YouVersion, Accordance, biblia.com, or any other app you wire up.
+A Bible-study toolkit for Obsidian. Type a reference like `John 3:16` or `1 Cor 13:4-7` anywhere in your notes and Scriptorium will recognize it, highlight it, hover-preview it (with verse text — no setup), link it to a hub note in your vault, and (one click later) jump straight to it in Olive Tree, YouVersion, Accordance, biblia.com, BibleGateway, Blue Letter Bible, STEP Bible, Logos, or any other app you wire up.
 
-It works offline by default. If you want passage text in previews, point it at a folder of vault Bible files or plug in an API.Bible key.
+**Verse text works the moment you install** — Scriptorium ships with a free, public-domain text provider enabled by default (no key, no account). Want ESV, NIV, NASB, LSB? Pair it with the ESV API, your API.Bible key, or your own vault folder.
 
 ## What it does
 
-- **Fuzzy reference autocomplete.** Type `/ref ` (configurable) and start typing — `1co13`, `jn 3 16`, or `Tobit 1:3` all resolve to the right passage.
-- **Inline ref highlighting** in the editor (CodeMirror 6, debounced so it stays smooth on big notes).
-- **Reading-mode previews** with a hover popup. Strong's tokens like `G3056` and `H1254` get linked to a lexicon URL of your choice.
-- **Scripture callouts** — `> [!scripture] John 3:16` (or `[!bible]`, `[!passage]`) renders the reference with passage text inlined.
+### Reference handling
+- Parses every form people actually type: `John 3:16`, `Jn 3:16`, `1 Cor 13:4-7`, `John 3:16-4:2`, `Romans 1-3`, `John 3:16,18,20`, `Jn.3.16`, multi-segment with `;`. Real per-chapter verse counts for the entire Protestant canon plus deuterocanon, so out-of-range references (`John 3:42`) are correctly rejected instead of silently clamped.
+- **Inline highlighting** in the editor (CodeMirror 6, debounced) with optional **book-section colors** (Pentateuch, Wisdom, Prophets, Gospels, Pauline, etc.).
+- **Hover popover** on detected references with verse text + action buttons (Open / Hub / Copy OSIS / More). Works in both edit and reading mode, mouse + focus + tap, bounds-checked positioning.
+- **Right-click context menu** on a reference: Open in current app, alternate apps, hub note, copy OSIS / Markdown link, convert to wikilink, insert verse text.
+- **Selection action bar** — select text containing a reference and a floating toolbar appears with the same actions. Always shows actions even with no provider configured.
+- **`EditorSuggest` autocomplete.** Type `/ref ` (configurable) and start typing — `1co13`, `jn 3 16`, or `Tobit 1:3` all resolve. Optional **ambient mode** surfaces a "Linkify reference" suggestion when you've just finished typing something that looks like a reference, no `/ref` prefix needed.
+- Strong's tokens like `G3056` and `H1254` get bundled lemma/transliteration/gloss tooltips for the most common words, plus click-through to a lexicon URL of your choice.
+- **Scripture callouts** — `> [!scripture] John 3:16` (also `[!bible]`, `[!passage]`) renders the reference with passage text inlined.
 - **Passage code blocks** —
   <pre><code>```passage
   John 3:16
   ```</code></pre>
   renders the verse text inline using whichever text provider is configured.
-- **Hub notes.** One command turns the reference at your cursor into (or links to) a per-book/per-chapter note under `Scripture/Hub/<Book>/ch-<n>.md`, with OSIS frontmatter so dataview / search / graph all work.
-- **External app handoff.** Olive Tree (`olivetree://`), YouVersion (bible.com), Accordance (`accord://`), biblia.com web. Select a reference, hit the command — the right URL opens.
-- **Logos paste normalization.** Paste a `logosres:` / `logos4:` / `logosft:` link and Scriptorium silently rewrites it to a Markdown link. (Logos has no public API for full library content, so there's no auto-URL — but pastes work.)
-- **Lectionary & pericopes.** Drop a CSV (`date,ref,...`) in your vault and insert today's readings with one command. A built-in pericope set (Synoptic parallels, etc.) ships with the plugin.
-- **Greek / Hebrew character pickers** for word-study notes.
-- **Custom book alias packs.** Add your own short-codes via a JSON setting *or* a vault note's frontmatter (`aliases_map:`) or a fenced ```` ```json ```` block — handy for non-English abbreviations or community conventions.
-- **Network kill-switch.** Flip one toggle and Scriptorium ignores API.Bible entirely.
+
+### Bible text providers
+| Mode | Setup | Translations | Network |
+|---|---|---|---|
+| **Free Bible API** *(default)* | nothing — works on install | WEB, KJV, ASV, BBE, OEB, Darby, YLT, DRA, Clementine | required |
+| **ESV API** | free key from [api.esv.org](https://api.esv.org/) | ESV | required |
+| **API.Bible** | free key from [scripture.api.bible](https://scripture.api.bible/) — built-in catalog browser to pick a Bible id | thousands | required |
+| **Vault folder** | per-chapter Markdown files in a folder you control | anything you supply | offline |
+| **References only** | nothing — no text | n/a | offline |
+
+A single **Allow network** toggle (also click the status-bar item) cuts all outbound traffic. Cached passages persist across restarts (LRU-capped at 500 entries, version-stamped).
+
+### Study-note types
+**How to start:** **Settings → Scriptorium → Study notes** (button **New study note…**), the **New study note** icon in the left ribbon (on by default — turn off under **Sidebar**), or the command palette: `Scriptorium: New study note` (assign a hotkey under **Obsidian Settings → Hotkeys**).
+
+The modal offers seven types:
+**Sermon**, **Inductive Bible study**, **Word study**, **Exegetical paper**, **Lectio Divina**, **Manuscript study**, **Reading plan entry**. Each type writes a `type:` frontmatter key and a templated body; reading mode adds a colored top bar so the type is visible at a glance.
+
+Sermon notes get pre-styled callouts: `[!sermon-bigidea]`, `[!sermon-application]`, `[!sermon-illustration]`, `[!sermon-question]`. `Scriptorium: Export current note as slide outline` writes a `*.slides.md` next to the source, compatible with [Advanced Slides](https://github.com/MSzturc/obsidian-advanced-slides).
+
+`Scriptorium: Index passages in this note's frontmatter` resolves `passages: [...]` strings into canonical OSIS keys in `passages_resolved:` for Dataview queries:
+
+```dataview
+TABLE passages_resolved AS Refs
+FROM "Studies"
+WHERE contains(passages_resolved, "John.3.16")
+```
+
+### Hub notes
+One command turns the reference at your cursor into (or links to) a per-book/per-chapter note under `Scripture/Hub/<Book>/ch-<n>.md`, with OSIS frontmatter so Dataview / search / graph all work.
+
+`Scriptorium: Link inline references to hub paths` rewrites a whole note's inline references to `[[Scripture/Hub/...|original text]]` wikilinks. Safe to re-run — wikilinks, markdown links, and code spans are skipped. Optional **auto-linkify on paste** runs the same logic on pasted text.
+
+### External app handoff
+**Olive Tree** (`olivetree://`), **YouVersion** (bible.com), **Accordance** (`accord://`), **biblia.com**, **BibleGateway**, **Blue Letter Bible**, **STEP Bible**, **Logos desktop** (`logosres:` — needs a resource alias and ref prefix copied from a Logos Bible link). Pasted `logosres:`/`logos4:`/`logosft:` links are auto-rewritten to Markdown links.
+
+### Pedagogy
+Lectionary CSV (`date,ref,...`) — insert today's readings with one command. A built-in pericope set (Synoptic parallels, etc.) ships with the plugin. Greek and Hebrew character pickers. Custom book alias packs via a JSON setting *or* a vault note's frontmatter (`aliases_map:`) or a fenced ```` ```json ```` block.
 
 Protestant canon by default; toggle on the deuterocanon (Tobit, Judith, Wisdom, Sirach, Baruch, 1–2 Maccabees) in settings.
 
@@ -41,8 +77,9 @@ Open **Settings → Scriptorium** and at minimum decide:
 - **Text provider** — `References only` (no inline text), `Vault folder` (reads passage text from a folder of files in your vault), or `API.Bible` (requires a free key from [scripture.api.bible](https://scripture.api.bible/)).
 - **Allow network** — leave on for API.Bible; turn off if you want a fully offline plugin.
 - **Hub folder** — where hub notes get created. `Scripture/Hub` by default.
+- **Study notes** — template picker under **Study notes** in this settings tab or via the ribbon; optional hotkey via **Obsidian Settings → Hotkeys**.
 
-Templates for inductive study and sermon notes live in `templates/`.
+Reference Markdown samples for inductive and sermon layouts also live in the repo folder `templates/`.
 
 ## Develop
 

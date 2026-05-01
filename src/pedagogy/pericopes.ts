@@ -4,6 +4,21 @@ export type PericopeEntry = {
 	refs: string[];
 };
 
+const userPericopes: PericopeEntry[] = [];
+
+export function setUserPericopes(entries: PericopeEntry[]): void {
+	userPericopes.length = 0;
+	for (const e of entries) {
+		if (typeof e?.id === "string" && typeof e?.title === "string" && Array.isArray(e?.refs)) {
+			userPericopes.push({ id: e.id, title: e.title, refs: e.refs.filter((r) => typeof r === "string") });
+		}
+	}
+}
+
+export function getActivePericopes(): PericopeEntry[] {
+	return [...BUILTIN_PERICOPES, ...userPericopes];
+}
+
 export const BUILTIN_PERICOPES: PericopeEntry[] = [
 	{
 		id: "baptism",

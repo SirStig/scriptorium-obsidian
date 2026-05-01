@@ -1,10 +1,11 @@
 {
 	"id": "scriptorium",
 	"name": "Scriptorium",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"minAppVersion": "1.6.0",
-	"description": "Scriptorium: scripture references, fuzzy autocomplete, app handoffs, reading-mode previews, hub notes, and Greek/Strong helpers.",
-	"author": "",
+	"description": "Scripture reference parsing, hover & selection actions, app handoffs, free Bible text out of the box, hub notes, study-note types, and Greek/Hebrew helpers.",
+	"author": "SirStig",
+	"authorUrl": "https://github.com/SirStig",
 	"isDesktopOnly": false,
 	"css": "styles.css"
 }

@@ -29,6 +29,7 @@ export class SelectionBubble {
 		};
 		const onMouseDown = (e: MouseEvent): void => {
 			if (this.el && !this.el.contains(e.target as Node)) {
+				if ((e.target as Element).closest?.(".menu")) return;
 				this.hide();
 			}
 		};
@@ -175,6 +176,7 @@ export class SelectionBubble {
 				editorReplace: editor ? (text) => editor.replaceSelection(text) : undefined,
 			});
 			const r = el.getBoundingClientRect();
+			this.hide();
 			menu.showAtPosition({ x: r.left, y: r.bottom + 4 });
 		});
 
