@@ -21,7 +21,7 @@ export function openUrlExternally(url: string): void {
 		a.href = url;
 		a.rel = "noopener";
 		a.target = "_blank";
-		a.style.display = "none";
+		a.setCssProps({ display: "none" });
 		document.body.appendChild(a);
 		a.click();
 		a.remove();

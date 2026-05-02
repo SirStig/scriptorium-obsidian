@@ -2,7 +2,7 @@
 	"id": "scriptorium",
 	"name": "Scriptorium",
 	"version": "1.0.0",
-	"minAppVersion": "1.6.0",
+	"minAppVersion": "1.7.2",
 	"description": "Scripture reference parsing, hover & selection actions, app handoffs, free Bible text out of the box, hub notes, study-note types, and Greek/Hebrew helpers.",
 	"author": "SirStig",
 	"authorUrl": "https://github.com/SirStig",

@@ -114,11 +114,9 @@ export class SelectionBubble {
 		closeActiveRefPopover();
 		this.hide();
 		const el = document.createElement("div");
-		el.className = "scriptorium-selection-bubble";
+		el.className = "scriptorium-selection-bubble scriptorium-selection-bubble-fixed";
 		el.setAttribute("role", "toolbar");
 		el.setAttribute("aria-label", `Actions for ${formatReferenceHuman(parsed.segments)}`);
-		el.style.position = "fixed";
-		el.style.zIndex = "9999";
 
 		const seg = parsed.segments[0]!;
 		const editor = this.plugin.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
@@ -156,7 +154,7 @@ export class SelectionBubble {
 
 		btn("OSIS", "Copy OSIS id", "copy", () => {
 			void navigator.clipboard.writeText(toNumericOsisString(parsed.segments));
-			new Notice("Copied OSIS id");
+			new Notice("Copied osis ID");
 		});
 
 		if (editor) {
@@ -168,16 +166,18 @@ export class SelectionBubble {
 				editor.replaceSelection(next);
 			});
 
-			btn("Insert text", "Insert verse text below", "file-text", async () => {
-				const r = await this.plugin.pickProvider().getPassage(seg);
-				if (!r?.text) {
-					new Notice("No text from current provider — switch to Free Bible API in settings.");
-					return;
-				}
-				const lines = r.text.split(/\r?\n/).map((l) => `> ${l}`).join("\n");
-				const attribution = r.attribution ? `\n> — ${r.attribution}` : "";
-				const cursor = editor.getCursor("to");
-				editor.replaceRange(`\n${lines}${attribution}\n`, cursor);
+			btn("Insert text", "Insert verse text below", "file-text", () => {
+				void (async () => {
+					const r = await this.plugin.pickProvider().getPassage(seg);
+					if (!r?.text) {
+						new Notice("No text from current provider — switch to free bible API in settings.");
+						return;
+					}
+					const lines = r.text.split(/\r?\n/).map((l) => `> ${l}`).join("\n");
+					const attribution = r.attribution ? `\n> — ${r.attribution}` : "";
+					const cursor = editor.getCursor("to");
+					editor.replaceRange(`\n${lines}${attribution}\n`, cursor);
+				})();
 			});
 		}
 
@@ -243,8 +243,7 @@ export class SelectionBubble {
 		if (left + er.width > window.innerWidth - margin) {
 			left = window.innerWidth - er.width - margin;
 		}
-		el.style.top = `${Math.round(top)}px`;
-		el.style.left = `${Math.round(left)}px`;
+		el.setCssProps({ top: `${Math.round(top)}px`, left: `${Math.round(left)}px` });
 	}
 }
 

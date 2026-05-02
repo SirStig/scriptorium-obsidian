@@ -157,7 +157,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 		containerEl.addClass("scriptorium-settings");
 
 		const header = containerEl.createDiv({ cls: "scriptorium-settings-header" });
-		header.createEl("h2", { text: "Scriptorium" });
+		new Setting(header).setName("Overview").setHeading();
 		header.createEl("p", {
 			cls: "scriptorium-settings-tagline",
 			text: "Scripture references, app handoffs, previews, and study workflows.",
@@ -209,11 +209,11 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 				cls: "scriptorium-settings-section",
 				attr: { "data-section-id": s.id },
 			});
-			const titleEl = el.createEl("h3", { cls: "scriptorium-settings-section-title" });
-			titleEl.createSpan({ text: s.label });
+			const titleSetting = new Setting(el).setName(s.label).setHeading();
+			titleSetting.settingEl.addClass("scriptorium-settings-section-heading");
 			const badge = this.sectionStatusBadge(s.id);
 			if (badge) {
-				const span = titleEl.createSpan({ cls: `scriptorium-status-badge ${badge.cls}`, text: badge.text });
+				const span = titleSetting.nameEl.createSpan({ cls: `scriptorium-status-badge ${badge.cls}`, text: badge.text });
 				if (badge.title) span.setAttr("title", badge.title);
 			}
 			el.createEl("p", { text: s.helper, cls: "scriptorium-settings-section-helper" });
@@ -229,12 +229,12 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 				for (const it of items) {
 					const txt = (it.textContent ?? "").toLowerCase();
 					const visible = q === "" || txt.includes(q);
-					it.style.display = visible ? "" : "none";
+					it.toggle(visible);
 					if (visible) anyVisible = true;
 				}
 				const helper = sec.querySelector<HTMLElement>(".scriptorium-settings-section-helper");
-				if (helper) helper.style.display = q === "" ? "" : "none";
-				sec.style.display = anyVisible ? "" : "none";
+				if (helper) helper.toggle(q === "");
+				sec.toggle(anyVisible);
 			}
 		});
 
@@ -746,23 +746,27 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 					})
 				)
 				.addButton((b) =>
-					b.setButtonText("Browse").onClick(async () => {
-						if (!this.plugin.settings.apiBibleKey) {
-							new Notice("Set the API.Bible key first.");
-							return;
-						}
-						const entries = await this.plugin.apiProvider?.listBibles();
-						if (!entries || entries.length === 0) {
-							new Notice("No Bibles returned — check the key and network.");
-							return;
-						}
-						new BiblePickerModal(this.app, entries, async (entry) => {
-							this.plugin.settings.apiBibleTranslation = entry.id;
-							await this.plugin.saveSettings();
-							this.plugin.refreshProviders();
-							this.display();
-							new Notice(`Selected ${entry.abbreviation || entry.name}`);
-						}).open();
+					b.setButtonText("Browse").onClick(() => {
+						void (async () => {
+							if (!this.plugin.settings.apiBibleKey) {
+								new Notice("Set the api.bible key first.");
+								return;
+							}
+							const entries = await this.plugin.apiProvider?.listBibles();
+							if (!entries || entries.length === 0) {
+								new Notice("No bibles returned — check the key and network.");
+								return;
+							}
+							new BiblePickerModal(this.app, entries, (entry) => {
+								void (async () => {
+									this.plugin.settings.apiBibleTranslation = entry.id;
+									await this.plugin.saveSettings();
+									this.plugin.refreshProviders();
+									this.display();
+									new Notice(`Selected ${entry.abbreviation || entry.name}`);
+								})();
+							}).open();
+						})();
 					})
 				);
 
@@ -1044,14 +1048,13 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 	}
 
 	private sectionAdvanced(host: HTMLElement): void {
-		// Live parser test
-		const parserTest = new Setting(host)
+		const parserWrap = host.createDiv({ cls: "scriptorium-settings-parser-input" });
+		const parserTest = new Setting(parserWrap)
 			.setName("Test parser")
-			.setDesc("Type any reference here and see what Scriptorium parses. Useful for verifying custom aliases.");
+			.setDesc("Type any reference here and see what scriptorium parses. Useful for verifying custom aliases.");
 		const out = parserTest.controlEl.createDiv({ cls: "scriptorium-settings-parser-out" });
 		parserTest.addText((t) => {
-			t.inputEl.style.width = "60%";
-			t.setPlaceholder("e.g. 1 Cor 13:4-7");
+			t.setPlaceholder("E.g. 1 Cor 13:4-7");
 			t.onChange((v) => {
 				if (!v.trim()) {
 					out.textContent = "";
@@ -1059,7 +1062,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 				}
 				const p = parseReference(v);
 				if (!p) {
-					out.textContent = "(no parse)";
+					out.textContent = "(No parse)";
 					out.classList.add("scriptorium-parser-empty");
 				} else {
 					out.classList.remove("scriptorium-parser-empty");
@@ -1086,19 +1089,21 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			.addTextArea((ta) => {
 				ta.inputEl.rows = 4;
 				ta.setPlaceholder('{"openApp":"olivetree","includeDeuterocanon":true,...}');
-				ta.inputEl.addEventListener("blur", async () => {
-					const v = ta.getValue().trim();
-					if (!v) return;
-					try {
-						const parsed = JSON.parse(v) as Partial<ScriptoriumSettings>;
-						this.plugin.settings = Object.assign({}, this.plugin.settings, parsed);
-						await this.plugin.saveSettings();
-						this.plugin.applyCanonAndAliases();
-						new Notice("Settings imported");
-						this.display();
-					} catch {
-						new Notice("Invalid JSON — nothing imported");
-					}
+				ta.inputEl.addEventListener("blur", () => {
+					void (async () => {
+						const v = ta.getValue().trim();
+						if (!v) return;
+						try {
+							const parsed = JSON.parse(v) as Partial<ScriptoriumSettings>;
+							this.plugin.settings = Object.assign({}, this.plugin.settings, parsed);
+							await this.plugin.saveSettings();
+							this.plugin.applyCanonAndAliases();
+							new Notice("Settings imported");
+							this.display();
+						} catch {
+							new Notice("Invalid JSON — nothing imported");
+						}
+					})();
 				});
 			});
 

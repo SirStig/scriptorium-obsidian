@@ -7,19 +7,32 @@
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"test": "vitest run",
+		"lint": "eslint src tests",
 		"deploy": "npm run build && node scripts/install.mjs",
 		"release": "npm run build && node scripts/package.mjs",
 		"version": "node scripts/version-bump.mjs && git add manifest.json versions.json"
 	},
-	"keywords": ["obsidian", "obsidian-plugin", "bible", "scripture", "sermon", "study"],
+	"keywords": [
+		"obsidian",
+		"obsidian-plugin",
+		"bible",
+		"scripture",
+		"sermon",
+		"study"
+	],
 	"author": "SirStig",
 	"license": "MIT",
 	"devDependencies": {
+		"@codemirror/state": "^6.5.0",
+		"@codemirror/view": "^6.38.6",
 		"@types/node": "^20.11.0",
 		"builtin-modules": "^4.0.0",
 		"esbuild": "^0.24.0",
+		"eslint": "^9.39.4",
+		"eslint-plugin-obsidianmd": "^0.2.9",
 		"obsidian": "^1.6.0",
 		"typescript": "^5.5.0",
+		"typescript-eslint": "^8.59.1",
 		"vitest": "^2.1.0"
 	}
 }

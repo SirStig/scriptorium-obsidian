@@ -51,14 +51,14 @@ export class StudyNoteCreateModal extends Modal {
 		new Setting(contentEl)
 			.setName("Title")
 			.addText((t) =>
-				t.setPlaceholder("e.g. The good shepherd").onChange((v) => (this.titleVal = v))
+				t.setPlaceholder("E.g. The good shepherd").onChange((v) => (this.titleVal = v))
 			);
 
 		new Setting(contentEl)
 			.setName("Primary passage")
 			.setDesc("Optional. Used in template + frontmatter.")
 			.addText((t) =>
-				t.setPlaceholder("e.g. John 10:1-18").onChange((v) => (this.passageVal = v))
+				t.setPlaceholder("E.g. John 10:1-18").onChange((v) => (this.passageVal = v))
 			);
 
 		new Setting(contentEl)
@@ -117,7 +117,7 @@ export class StudyNoteCreateModal extends Modal {
 		await ensureFolder(this.app, folder);
 
 		const safeTitle = this.titleVal.replace(/[/\\:?*"<>|]/g, "-");
-		const path = await uniquePath(this.app, `${folder}/${safeTitle}.md`);
+		const path = uniquePath(this.app, `${folder}/${safeTitle}.md`);
 
 		const body = fillTemplate(this.picked.template, {
 			title: this.titleVal,
@@ -150,7 +150,7 @@ async function ensureFolder(app: App, path: string): Promise<void> {
 	}
 }
 
-async function uniquePath(app: App, base: string): Promise<string> {
+function uniquePath(app: App, base: string): string {
 	if (!app.vault.getAbstractFileByPath(base)) return base;
 	const m = base.match(/^(.*?)(\.md)$/);
 	const stem = m ? m[1]! : base;

@@ -26,7 +26,7 @@ const SECTION_LABELS: Record<string, string> = {
 function buildPopoverContent(
 	plugin: ScriptoriumPlugin,
 	parsed: ParsedReference,
-	matchedText: string,
+	_matchedText: string,
 	onMoreActions: (e: MouseEvent) => void,
 	onOpenRef: (parsed: ParsedReference) => void,
 	onClose: () => void
@@ -73,7 +73,7 @@ function buildPopoverContent(
 
 	const attr = document.createElement("div");
 	attr.className = "scriptorium-ref-pop-attr";
-	attr.style.display = "none";
+	attr.hide();
 	wrap.appendChild(attr);
 
 	// Cross-ref chips (when bundled or downloaded data has any)
@@ -110,10 +110,10 @@ function buildPopoverContent(
 				body.textContent = r.text;
 				if (r.attribution) {
 					attr.textContent = r.attribution;
-					attr.style.display = "";
+					attr.show();
 				}
 			} else {
-				body.textContent = "(No preview text. Switch to Free Bible API in settings, or pick a provider.)";
+				body.textContent = "(No preview text. Switch to free bible API in settings, or pick a provider.)";
 			}
 		})
 		.catch(() => {
@@ -151,7 +151,7 @@ function buildPopoverContent(
 	});
 	btn("Copy OSIS", "Copy OSIS id", () => {
 		void navigator.clipboard.writeText(toNumericOsisString(parsed.segments));
-		new Notice("Copied OSIS id");
+		new Notice("Copied osis ID");
 	});
 	btn("⋯", "More actions", (e) => onMoreActions(e));
 
@@ -196,8 +196,7 @@ function reposition(pop: HTMLElement, anchor: DOMRect): void {
 	if (top + pr.height > window.innerHeight - margin) {
 		top = Math.max(margin, anchor.top - pr.height - margin);
 	}
-	pop.style.left = `${Math.round(left)}px`;
-	pop.style.top = `${Math.round(top)}px`;
+	pop.setCssProps({ left: `${Math.round(left)}px`, top: `${Math.round(top)}px` });
 }
 
 /**
@@ -217,11 +216,9 @@ export function openRefPopover(
 	const popId = `scriptorium-ref-pop-${++popSequence}`;
 	const pop = document.createElement("div");
 	pop.id = popId;
-	pop.className = "scriptorium-ref-pop";
+	pop.className = "scriptorium-ref-pop scriptorium-ref-pop-fixed";
 	pop.setAttribute("role", "tooltip");
-	pop.style.position = "fixed";
-	pop.style.zIndex = "9999";
-	pop.style.visibility = "hidden";
+	pop.setCssProps({ visibility: "hidden" });
 	const closer = { fn: (): void => {} };
 	pop.appendChild(
 		buildPopoverContent(
@@ -307,7 +304,7 @@ export function openRefPopover(
 
 	requestAnimationFrame(() => {
 		reposition(pop, anchor.getBoundingClientRect());
-		pop.style.visibility = "visible";
+		pop.setCssProps({ visibility: "visible" });
 	});
 
 	return state;

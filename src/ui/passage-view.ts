@@ -56,7 +56,7 @@ export class PassagePaneView extends ItemView {
 		this.prevBtn = navWrap.createEl("button", { cls: "scriptorium-passage-navbtn", text: "← prev" });
 		this.prevBtn.setAttr("aria-label", "Previous chapter");
 		this.prevBtn.addEventListener("click", () => this.stepChapter(-1));
-		this.nextBtn = navWrap.createEl("button", { cls: "scriptorium-passage-navbtn", text: "next →" });
+		this.nextBtn = navWrap.createEl("button", { cls: "scriptorium-passage-navbtn", text: "Next →" });
 		this.nextBtn.setAttr("aria-label", "Next chapter");
 		this.nextBtn.addEventListener("click", () => this.stepChapter(1));
 
@@ -68,7 +68,7 @@ export class PassagePaneView extends ItemView {
 		this.translationBtn.setAttr("aria-label", "Switch translation");
 		this.translationBtn.addEventListener("click", () => {
 			(this.app as unknown as { commands: { executeCommandById: (id: string) => void } })
-				.commands.executeCommandById("scriptorium:scriptorium-switch-translation");
+				.commands.executeCommandById("scriptorium:switch-translation");
 		});
 
 		this.pinBtn = actionsWrap.createEl("button", { cls: "scriptorium-passage-pin", text: "Pin" });
@@ -295,9 +295,10 @@ export class PassagePaneView extends ItemView {
 		}
 	}
 
-	async onClose(): Promise<void> {
+	onClose(): Promise<void> {
 		this.resizeObserver?.disconnect();
 		this.resizeObserver = null;
 		this.contentEl.empty();
+		return Promise.resolve();
 	}
 }

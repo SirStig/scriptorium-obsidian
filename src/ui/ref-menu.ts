@@ -100,11 +100,11 @@ export function buildRefMenu(menu: Menu, ctx: MenuContext): void {
 
 	menu.addItem((item) =>
 		item
-			.setTitle("Copy OSIS id")
+			.setTitle("Copy osis ID")
 			.setIcon("copy")
 			.onClick(() => {
 				void navigator.clipboard.writeText(toNumericOsisString(parsed.segments));
-				new Notice("Copied OSIS id");
+				new Notice("Copied osis ID");
 			})
 	);
 

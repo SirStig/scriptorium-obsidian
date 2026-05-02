@@ -139,7 +139,7 @@ export async function downloadStrongs(
 	app: App,
 	plugin: Plugin
 ): Promise<StrongsDownloadStatus> {
-	new Notice("Downloading Strong's lexicon — this can take a few seconds…");
+	new Notice("Downloading strong's lexicon — this can take a few seconds…");
 	let greekStat = { count: 0, size: 0 };
 	let hebrewStat = { count: 0, size: 0 };
 	try {

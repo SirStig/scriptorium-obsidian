@@ -13,7 +13,7 @@ export interface TextProvider {
 
 export class NoneTextProvider implements TextProvider {
 	id = "none";
-	async getPassage(): Promise<PassageTextResult | null> {
-		return null;
+	getPassage(): Promise<PassageTextResult | null> {
+		return Promise.resolve(null);
 	}
 }

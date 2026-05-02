@@ -30,8 +30,6 @@ function enrichScriptureCallout(host: HTMLElement, plugin: ScriptoriumPlugin): v
 	if (!ref?.segments[0]) return;
 	const box = document.createElement("div");
 	box.className = "scriptorium-callout-enriched";
-	box.style.marginTop = "0.5rem";
-	box.style.fontSize = "0.92em";
 	const seg = ref.segments[0]!;
 	void plugin.pickProvider().getPassage(seg).then((r) => {
 		box.textContent = r?.text ?? "(Enable a text provider for preview.)";
@@ -244,7 +242,7 @@ export function registerReadingModeProcessors(plugin: ScriptoriumPlugin): void {
 		const seg = ref.segments[0]!;
 		void plugin.pickProvider().getPassage(seg).then((r) => {
 			if (r?.text) pre.setText(r.text);
-			else pre.setText("(No text provider — configure settings or add vault Bible files.)");
+			else pre.setText("(No text provider — configure settings or add vault bible files.)");
 		});
 	});
 }

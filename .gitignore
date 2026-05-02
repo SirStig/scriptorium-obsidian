@@ -15,6 +15,7 @@ coverage/
 .vitest-cache/
 
 # Editor / OS
+CLAUDE.md
 .vscode/
 .idea/
 *.swp

@@ -1,5 +1,4 @@
 import {
-	MarkdownView,
 	Notice,
 	Plugin,
 	Editor,
@@ -40,7 +39,7 @@ import { PassagePaneView, PASSAGE_VIEW_TYPE } from "./ui/passage-view";
 import { parseLectionaryCsv, rowForDate, type LectionaryRow } from "./pedagogy/lectionary";
 import { getActivePericopes, setUserPericopes, type PericopeEntry } from "./pedagogy/pericopes";
 import { openGreekPicker, openHebrewPicker } from "./study/greek-insert";
-import { setUserStrongs, downloadedStrongsCount, type StrongsEntry } from "./study/strongs-data";
+import { setUserStrongs, type StrongsEntry } from "./study/strongs-data";
 import {
 	downloadStrongs,
 	loadDownloadedStrongs,
@@ -212,10 +211,10 @@ export default class ScriptoriumPlugin extends Plugin {
 		if (!this.vodStatusEl) {
 			this.vodStatusEl = this.addStatusBarItem();
 			this.vodStatusEl.addClass("scriptorium-vod-statusbar");
-			this.vodStatusEl.style.cursor = "pointer";
+			this.vodStatusEl.addClass("scriptorium-clickable");
 			this.vodStatusEl.addEventListener("click", () => {
 				const cached = this.settings.verseOfDayCache;
-				if (cached) showVerseOfDayNotice(cached as VerseOfDay);
+				if (cached) showVerseOfDayNotice(cached);
 			});
 			this.vodStatusEl.setText("📖 …");
 		}
@@ -292,7 +291,7 @@ export default class ScriptoriumPlugin extends Plugin {
 			}
 			await leaf.setViewState({ type: PASSAGE_VIEW_TYPE, active: true });
 		}
-		workspace.revealLeaf(leaf);
+		await workspace.revealLeaf(leaf);
 		const v = leaf.view;
 		if (v instanceof PassagePaneView) await v.refresh();
 	}
@@ -366,7 +365,7 @@ export default class ScriptoriumPlugin extends Plugin {
 				hebrew: data.hebrew && typeof data.hebrew === "object" ? data.hebrew : undefined,
 			});
 		} catch {
-			new Notice("Could not parse Strong's extras JSON");
+			new Notice("Could not parse strong's extras JSON");
 		}
 	}
 
@@ -412,7 +411,7 @@ export default class ScriptoriumPlugin extends Plugin {
 				const o = JSON.parse(jsonBlock[1]) as Record<string, string>;
 				this.settings.customAliases = { ...this.settings.customAliases, ...o };
 			} catch {
-				new Notice("Could not parse json code block in alias note");
+				new Notice("Could not parse JSON code block in alias note");
 			}
 		}
 		await this.saveSettings();
@@ -450,7 +449,7 @@ export default class ScriptoriumPlugin extends Plugin {
 
 		this.statusBarEl = this.addStatusBarItem();
 		this.statusBarEl.addClass("scriptorium-statusbar");
-		this.statusBarEl.style.cursor = "pointer";
+		this.statusBarEl.addClass("scriptorium-clickable");
 		this.statusBarEl.addEventListener("click", () => {
 			this.settings.allowNetwork = !this.settings.allowNetwork;
 			void this.saveSettings();
@@ -460,12 +459,11 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 		this.refreshStatusBar();
 
-		const aria = document.createElement("div");
+		const aria = document.body.createDiv();
+		aria.addClass("scriptorium-sr-only");
 		aria.id = "scriptorium-aria-live";
 		aria.setAttribute("role", "status");
 		aria.setAttribute("aria-live", "polite");
-		aria.style.cssText = "position:fixed;left:-9999px;width:1px;height:1px;overflow:hidden;";
-		document.body.appendChild(aria);
 		this.register(() => aria.remove());
 
 		this.registerEvent(
@@ -501,6 +499,7 @@ export default class ScriptoriumPlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.workspace.on("editor-paste", (clipboard: ClipboardEvent, editor: Editor) => {
+				if (clipboard.defaultPrevented) return;
 				const raw = clipboard.clipboardData?.getData("text/plain");
 				if (!raw) return;
 				let next = normalizePastedText(raw, this.settings.pasteNormalizeLogos);
@@ -514,8 +513,8 @@ export default class ScriptoriumPlugin extends Plugin {
 		);
 
 		this.addCommand({
-			id: "scriptorium-open-cursor-ref",
-			name: "Scriptorium: Open passage under cursor (external)",
+			id: "open-cursor-ref",
+			name: "Open passage under cursor (external)",
 			editorCallback: (editor) => {
 				const hit = findRefAtCursor(editor);
 				if (!hit) {
@@ -527,51 +526,55 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scriptorium-open-hub",
-			name: "Scriptorium: Open or create scripture hub note",
-			editorCallback: async (editor) => {
-				const hit = findRefAtCursor(editor);
-				if (!hit) {
-					new Notice("No reference at cursor");
-					return;
-				}
-				const file = await ensureHubNote(
-					this.app,
-					this.settings.hubFolder,
-					this.settings.hubPerChapter,
-					hit.parsed.segments[0]!,
-					{ allowNetwork: this.settings.allowNetwork }
-				);
-				await this.app.workspace.openLinkText(file.path, "", true);
+			id: "open-hub",
+			name: "Open or create scripture hub note",
+			editorCallback: (editor) => {
+				void (async () => {
+					const hit = findRefAtCursor(editor);
+					if (!hit) {
+						new Notice("No reference at cursor");
+						return;
+					}
+					const file = await ensureHubNote(
+						this.app,
+						this.settings.hubFolder,
+						this.settings.hubPerChapter,
+						hit.parsed.segments[0]!,
+						{ allowNetwork: this.settings.allowNetwork }
+					);
+					await this.app.workspace.openLinkText(file.path, "", true);
+				})();
 			},
 		});
 
 		this.addCommand({
-			id: "scriptorium-insert-passage-text",
-			name: "Scriptorium: Insert passage text at cursor",
-			editorCallback: async (editor) => {
-				const hit = findRefAtCursor(editor);
-				if (!hit) {
-					new Notice("No reference at cursor");
-					return;
-				}
-				const seg = hit.parsed.segments[0]!;
-				const provider = this.pickProvider();
-				const r = await provider.getPassage(seg);
-				if (!r?.text) {
-					new Notice("No text from current provider — configure one in settings.");
-					return;
-				}
-				const lines = r.text.split(/\r?\n/).map((l) => `> ${l}`).join("\n");
-				const attribution = r.attribution ? `\n> — ${r.attribution}` : "";
-				const block = `\n${lines}${attribution}\n`;
-				editor.replaceRange(block, { line: hit.to.line, ch: hit.to.ch });
+			id: "insert-passage-text",
+			name: "Insert passage text at cursor",
+			editorCallback: (editor) => {
+				void (async () => {
+					const hit = findRefAtCursor(editor);
+					if (!hit) {
+						new Notice("No reference at cursor");
+						return;
+					}
+					const seg = hit.parsed.segments[0]!;
+					const provider = this.pickProvider();
+					const r = await provider.getPassage(seg);
+					if (!r?.text) {
+						new Notice("No text from current provider — configure one in settings.");
+						return;
+					}
+					const lines = r.text.split(/\r?\n/).map((l) => `> ${l}`).join("\n");
+					const attribution = r.attribution ? `\n> — ${r.attribution}` : "";
+					const block = `\n${lines}${attribution}\n`;
+					editor.replaceRange(block, { line: hit.to.line, ch: hit.to.ch });
+				})();
 			},
 		});
 
 		this.addCommand({
-			id: "scriptorium-copy-logos-pattern",
-			name: "Scriptorium: Copy Logos URI selection as Markdown link",
+			id: "copy-logos-pattern",
+			name: "Copy logos uri selection as Markdown link",
 			editorCallback: (editor) => {
 				const sel = editor.getSelection();
 				if (!sel) {
@@ -579,7 +582,7 @@ export default class ScriptoriumPlugin extends Plugin {
 					return;
 				}
 				if (!LOGOS_URI_PATTERN.test(sel)) {
-					new Notice("Selection does not look like a Logos URI");
+					new Notice("Selection does not look like a logos uri");
 					return;
 				}
 				void navigator.clipboard.writeText(`[Logos](${sel.trim()})`);
@@ -588,8 +591,8 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scriptorium-copy-osis",
-			name: "Scriptorium: Copy OSIS-style passage id",
+			id: "copy-osis",
+			name: "Copy osis-style passage ID",
 			editorCallback: (editor) => {
 				const hit = findRefAtCursor(editor);
 				if (!hit) {
@@ -597,13 +600,13 @@ export default class ScriptoriumPlugin extends Plugin {
 					return;
 				}
 				void navigator.clipboard.writeText(toNumericOsisString(hit.parsed.segments));
-				new Notice("Copied passage id");
+				new Notice("Copied passage ID");
 			},
 		});
 
 		this.addCommand({
-			id: "scriptorium-convert-cursor-to-wikilink",
-			name: "Scriptorium: Convert reference under cursor to hub wikilink",
+			id: "convert-cursor-to-wikilink",
+			name: "Convert reference under cursor to hub wikilink",
 			editorCallback: (editor) => {
 				const hit = findRefAtCursor(editor);
 				if (!hit) {
@@ -620,8 +623,8 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scriptorium-link-refs-in-note",
-			name: "Scriptorium: Link inline references to hub paths (whole note)",
+			id: "link-refs-in-note",
+			name: "Link inline references to hub paths (whole note)",
 			editorCheckCallback: (checking, editor, ctx) => {
 				const file = ctx.file;
 				if (!file) return false;
@@ -639,16 +642,16 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scriptorium-refresh-passage-pane",
-			name: "Scriptorium: Refresh passage pane",
+			id: "refresh-passage-pane",
+			name: "Refresh passage pane",
 			callback: () => {
 				void this.activatePassageView();
 			},
 		});
 
 		this.addCommand({
-			id: "scriptorium-insert-lectionary-today",
-			name: "Scriptorium: Insert today’s lectionary readings",
+			id: "insert-lectionary-today",
+			name: "Insert today’s lectionary readings",
 			editorCallback: (editor) => {
 				const iso = new Date().toISOString().slice(0, 10);
 				const row = rowForDate(this.lectionaryRows, iso);
@@ -661,8 +664,8 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scriptorium-insert-pericope",
-			name: "Scriptorium: Insert built-in pericope parallels",
+			id: "insert-pericope",
+			name: "Insert built-in pericope parallels",
 			editorCallback: (editor) => {
 				new PericopePickModal(this.app, (p) => {
 					editor.replaceSelection(p.refs.join("\n") + "\n");
@@ -671,28 +674,28 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scriptorium-greek-insert",
-			name: "Scriptorium: Insert Greek character",
+			id: "greek-insert",
+			name: "Insert greek character",
 			callback: () => openGreekPicker(this.app),
 		});
 
 		this.addCommand({
-			id: "scriptorium-hebrew-insert",
-			name: "Scriptorium: Insert Hebrew character / mark",
+			id: "hebrew-insert",
+			name: "Insert hebrew character / mark",
 			callback: () => openHebrewPicker(this.app),
 		});
 
 		this.addCommand({
-			id: "scriptorium-new-study-note",
-			name: "Scriptorium: New study note (sermon, inductive, word study, …)",
+			id: "new-study-note",
+			name: "New study note (sermon, inductive, word study, …)",
 			callback: () => {
 				new StudyNoteCreateModal(this.app, this).open();
 			},
 		});
 
 		this.addCommand({
-			id: "scriptorium-export-slides",
-			name: "Scriptorium: Export current note as slide outline",
+			id: "export-slides",
+			name: "Export current note as slide outline",
 			editorCheckCallback: (checking, editor, ctx) => {
 				const file = ctx.file;
 				if (!file) return false;
@@ -715,28 +718,32 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scriptorium-download-strongs",
-			name: "Scriptorium: Download full Strong's lexicon (CC0)",
-			callback: async () => {
-				if (!this.settings.allowNetwork) {
-					new Notice("Network disabled — toggle Allow network in settings first.");
-					return;
-				}
-				await downloadStrongs(this.app, this);
+			id: "download-strongs",
+			name: "Download full strong's lexicon (cc0)",
+			callback: () => {
+				void (async () => {
+					if (!this.settings.allowNetwork) {
+						new Notice("Network disabled — toggle allow network in settings first.");
+						return;
+					}
+					await downloadStrongs(this.app, this);
+				})();
 			},
 		});
 
 		this.addCommand({
-			id: "scriptorium-clear-strongs",
-			name: "Scriptorium: Clear downloaded Strong's data",
-			callback: async () => {
-				await clearDownloadedStrongs(this.app, this);
+			id: "clear-strongs",
+			name: "Clear downloaded strong's data",
+			callback: () => {
+				void (async () => {
+					await clearDownloadedStrongs(this.app, this);
+				})();
 			},
 		});
 
 		this.addCommand({
-			id: "scriptorium-insert-mermaid-outline",
-			name: "Scriptorium: Insert Mermaid outline diagram",
+			id: "insert-mermaid-outline",
+			name: "Insert Mermaid outline diagram",
 			editorCallback: (editor) => {
 				const body = editor.getValue();
 				const mermaid = outlineToMermaid(body);
@@ -750,8 +757,8 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scriptorium-index-passages",
-			name: "Scriptorium: Index passages in this note's frontmatter",
+			id: "index-passages",
+			name: "Index passages in this note's frontmatter",
 			editorCheckCallback: (checking, editor, ctx) => {
 				const file = ctx.file;
 				if (!file) return false;
@@ -773,69 +780,77 @@ export default class ScriptoriumPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "scriptorium-switch-translation",
-			name: "Scriptorium: Switch translation for current provider",
-			callback: async () => {
-				const mode = this.settings.textProvider;
-				if (mode === "free_bible") {
-					const FREE_OPTS = [
-						{ id: "web", name: "World English Bible", abbreviation: "WEB", language: "English" },
-						{ id: "kjv", name: "King James Version", abbreviation: "KJV", language: "English" },
-						{ id: "asv", name: "American Standard Version", abbreviation: "ASV", language: "English" },
-						{ id: "bbe", name: "Bible in Basic English", abbreviation: "BBE", language: "English" },
-						{ id: "oeb-cw", name: "Open English Bible (Commonwealth)", abbreviation: "OEB-CW", language: "English" },
-						{ id: "oeb-us", name: "Open English Bible (US)", abbreviation: "OEB-US", language: "English" },
-						{ id: "darby", name: "Darby Bible (1890)", abbreviation: "DARBY", language: "English" },
-						{ id: "ylt", name: "Young's Literal Translation", abbreviation: "YLT", language: "English" },
-						{ id: "dra", name: "Douay–Rheims American (Catholic)", abbreviation: "DRA", language: "English" },
-						{ id: "clementine", name: "Clementine Vulgate", abbreviation: "VULG", language: "Latin" },
-					];
-					new BiblePickerModal(this.app, FREE_OPTS, async (e) => {
-						this.settings.freeBibleTranslation = e.id;
-						await this.saveSettings();
-						new Notice(`Free Bible translation: ${e.abbreviation || e.name}`);
-					}).open();
-					return;
-				}
-				if (mode === "api_bible") {
-					if (!this.settings.apiBibleKey) {
-						new Notice("Set the API.Bible key in settings first.");
+			id: "switch-translation",
+			name: "Switch translation for current provider",
+			callback: () => {
+				void (async () => {
+					const mode = this.settings.textProvider;
+					if (mode === "free_bible") {
+						const FREE_OPTS = [
+							{ id: "web", name: "World English Bible", abbreviation: "WEB", language: "English" },
+							{ id: "kjv", name: "King James Version", abbreviation: "KJV", language: "English" },
+							{ id: "asv", name: "American Standard Version", abbreviation: "ASV", language: "English" },
+							{ id: "bbe", name: "Bible in Basic English", abbreviation: "BBE", language: "English" },
+							{ id: "oeb-cw", name: "Open English Bible (Commonwealth)", abbreviation: "OEB-CW", language: "English" },
+							{ id: "oeb-us", name: "Open English Bible (US)", abbreviation: "OEB-US", language: "English" },
+							{ id: "darby", name: "Darby Bible (1890)", abbreviation: "DARBY", language: "English" },
+							{ id: "ylt", name: "Young's Literal Translation", abbreviation: "YLT", language: "English" },
+							{ id: "dra", name: "Douay–Rheims American (Catholic)", abbreviation: "DRA", language: "English" },
+							{ id: "clementine", name: "Clementine Vulgate", abbreviation: "VULG", language: "Latin" },
+						];
+						new BiblePickerModal(this.app, FREE_OPTS, (e) => {
+							void (async () => {
+								this.settings.freeBibleTranslation = e.id;
+								await this.saveSettings();
+								new Notice(`Free Bible translation: ${e.abbreviation || e.name}`);
+							})();
+						}).open();
 						return;
 					}
-					const entries = await this.apiProvider?.listBibles();
-					if (!entries || entries.length === 0) {
-						new Notice("No Bibles returned — check key and network.");
+					if (mode === "api_bible") {
+						if (!this.settings.apiBibleKey) {
+							new Notice("Set the api.bible key in settings first.");
+							return;
+						}
+						const entries = await this.apiProvider?.listBibles();
+						if (!entries || entries.length === 0) {
+							new Notice("No bibles returned — check key and network.");
+							return;
+						}
+						new BiblePickerModal(this.app, entries, (e) => {
+							void (async () => {
+								this.settings.apiBibleTranslation = e.id;
+								await this.saveSettings();
+								new Notice(`API.Bible translation: ${e.abbreviation || e.name}`);
+							})();
+						}).open();
 						return;
 					}
-					new BiblePickerModal(this.app, entries, async (e) => {
-						this.settings.apiBibleTranslation = e.id;
-						await this.saveSettings();
-						new Notice(`API.Bible translation: ${e.abbreviation || e.name}`);
-					}).open();
-					return;
-				}
-				new Notice(
-					"Switch translations only supported for Free Bible API and API.Bible. For Vault folder, change the folder path in settings."
-				);
+					new Notice(
+						"Switch translations only supported for free bible API and api.bible. For vault folder, change the folder path in settings."
+					);
+				})();
 			},
 		});
 
 		this.addCommand({
-			id: "scriptorium-open-interlinear-folder",
-			name: "Scriptorium: Ensure interlinear notes folder exists",
-			callback: async () => {
-				const folder = (this.settings.interlinearNotesPath || "Scripture/Interlinear").replace(/\/$/, "");
-				if (!this.app.vault.getAbstractFileByPath(folder)) {
-					const parts = folder.split("/").filter(Boolean);
-					let acc = "";
-					for (const p of parts) {
-						acc = acc ? `${acc}/${p}` : p;
-						if (!this.app.vault.getAbstractFileByPath(acc)) {
-							await this.app.vault.createFolder(acc);
+			id: "open-interlinear-folder",
+			name: "Ensure interlinear notes folder exists",
+			callback: () => {
+				void (async () => {
+					const folder = (this.settings.interlinearNotesPath || "Scripture/Interlinear").replace(/\/$/, "");
+					if (!this.app.vault.getAbstractFileByPath(folder)) {
+						const parts = folder.split("/").filter(Boolean);
+						let acc = "";
+						for (const p of parts) {
+							acc = acc ? `${acc}/${p}` : p;
+							if (!this.app.vault.getAbstractFileByPath(acc)) {
+								await this.app.vault.createFolder(acc);
+							}
 						}
 					}
-				}
-				new Notice(`Interlinear folder ready: ${folder}`);
+					new Notice(`Interlinear folder ready: ${folder}`);
+				})();
 			},
 		});
 	}
@@ -851,7 +866,7 @@ export default class ScriptoriumPlugin extends Plugin {
 		if (this.settings.openApp === "none") return;
 		if (this.settings.openApp === "logos_uri") {
 			new Notice(
-				"Logos: add Resource alias + Ref prefix in Scriptorium settings (see Logos ‘Copy location’ link), or paste a logosres: URI."
+				"Logos: add resource alias + ref prefix in scriptorium settings (see logos ‘copy location’ link), or paste a logosres: URI."
 			);
 			return;
 		}

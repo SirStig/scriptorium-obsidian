@@ -1,3 +1,33 @@
+.scriptorium-sr-only {
+	position: fixed;
+	left: -9999px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+}
+
+.scriptorium-clickable {
+	cursor: pointer;
+}
+
+.scriptorium-ref-pop-fixed {
+	position: fixed;
+	z-index: 9999;
+}
+
+.scriptorium-selection-bubble-fixed {
+	position: fixed;
+	z-index: 9999;
+}
+
+.scriptorium-settings-parser-input .setting-item-control {
+	max-width: 100%;
+}
+
+.scriptorium-settings-parser-input input[type="text"] {
+	width: 60%;
+}
+
 .scriptorium-scripture-ref {
 	border-bottom: 1px dashed var(--text-accent);
 }
@@ -503,6 +533,26 @@
 	gap: 0.5rem;
 }
 
+.scriptorium-settings-section-heading.setting-item {
+	border-top: none !important;
+	padding: 0 0 0.3rem !important;
+	margin: 0;
+}
+
+.scriptorium-settings-section-heading .setting-item-control {
+	display: none;
+}
+
+.scriptorium-settings-section-heading .setting-item-name {
+	font-size: 1.15em;
+	font-weight: 600;
+	letter-spacing: -0.005em;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
 .scriptorium-settings-section-helper {
 	margin: 0 0 0.8rem;
 	color: var(--text-muted);
@@ -774,6 +824,8 @@
 .scriptorium-passage-backlink:hover { color: var(--interactive-accent); text-decoration: underline; }
 
 .scriptorium-callout-enriched {
+	margin-top: 0.5rem;
+	font-size: 0.92em;
 	padding: 0.35rem 0.5rem;
 	border-radius: var(--radius-s);
 	background: var(--background-secondary);
