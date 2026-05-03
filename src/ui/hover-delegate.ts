@@ -27,8 +27,8 @@ export class RefHoverDelegate {
 			if (!this.plugin.settings.hoverPopover) return;
 			const t = e.target as Element | null;
 			if (!t) return;
-			const span = t.closest?.(".scriptorium-scripture-ref") as HTMLElement | null;
-			if (!span) return;
+			const span = t.closest?.(".scriptorium-scripture-ref");
+			if (!(span instanceof HTMLElement)) return;
 			// Don't double-trigger on reading-mode anchors — those already have
 			// their own popover wiring (attachRefPopover).
 			if (span.querySelector(".scriptorium-ref-anchor")) return;

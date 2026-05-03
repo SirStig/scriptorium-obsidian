@@ -365,7 +365,7 @@ export default class ScriptoriumPlugin extends Plugin {
 				hebrew: data.hebrew && typeof data.hebrew === "object" ? data.hebrew : undefined,
 			});
 		} catch {
-			new Notice("Could not parse strong's extras JSON");
+			new Notice("Could not parse Strong's extras JSON");
 		}
 	}
 
@@ -400,7 +400,7 @@ export default class ScriptoriumPlugin extends Plugin {
 		const f = this.app.vault.getAbstractFileByPath(p);
 		if (!(f instanceof TFile)) return;
 		const text = await this.app.vault.read(f);
-		const fm = this.app.metadataCache.getFileCache(f)?.frontmatter as Record<string, unknown> | undefined;
+		const fm = this.app.metadataCache.getFileCache(f)?.frontmatter;
 		const am = fm?.aliases_map;
 		if (am && typeof am === "object" && !Array.isArray(am)) {
 			this.settings.customAliases = { ...this.settings.customAliases, ...(am as Record<string, string>) };
@@ -561,7 +561,7 @@ export default class ScriptoriumPlugin extends Plugin {
 					const provider = this.pickProvider();
 					const r = await provider.getPassage(seg);
 					if (!r?.text) {
-						new Notice("No text from current provider — configure one in settings.");
+						new Notice("No text from current provider — configure one in Settings.");
 						return;
 					}
 					const lines = r.text.split(/\r?\n/).map((l) => `> ${l}`).join("\n");
@@ -574,7 +574,7 @@ export default class ScriptoriumPlugin extends Plugin {
 
 		this.addCommand({
 			id: "copy-logos-pattern",
-			name: "Copy logos uri selection as Markdown link",
+			name: "Copy Logos URI selection as Markdown link",
 			editorCallback: (editor) => {
 				const sel = editor.getSelection();
 				if (!sel) {
@@ -582,7 +582,7 @@ export default class ScriptoriumPlugin extends Plugin {
 					return;
 				}
 				if (!LOGOS_URI_PATTERN.test(sel)) {
-					new Notice("Selection does not look like a logos uri");
+					new Notice("Selection does not look like a Logos URI");
 					return;
 				}
 				void navigator.clipboard.writeText(`[Logos](${sel.trim()})`);
@@ -592,7 +592,7 @@ export default class ScriptoriumPlugin extends Plugin {
 
 		this.addCommand({
 			id: "copy-osis",
-			name: "Copy osis-style passage ID",
+			name: "Copy OSIS-style passage ID",
 			editorCallback: (editor) => {
 				const hit = findRefAtCursor(editor);
 				if (!hit) {
@@ -675,13 +675,13 @@ export default class ScriptoriumPlugin extends Plugin {
 
 		this.addCommand({
 			id: "greek-insert",
-			name: "Insert greek character",
+			name: "Insert Greek character",
 			callback: () => openGreekPicker(this.app),
 		});
 
 		this.addCommand({
 			id: "hebrew-insert",
-			name: "Insert hebrew character / mark",
+			name: "Insert Hebrew character / mark",
 			callback: () => openHebrewPicker(this.app),
 		});
 
@@ -719,11 +719,11 @@ export default class ScriptoriumPlugin extends Plugin {
 
 		this.addCommand({
 			id: "download-strongs",
-			name: "Download full strong's lexicon (cc0)",
+			name: "Download full Strong's lexicon (CC0)",
 			callback: () => {
 				void (async () => {
 					if (!this.settings.allowNetwork) {
-						new Notice("Network disabled — toggle allow network in settings first.");
+						new Notice("Network disabled — turn it on in Settings first.");
 						return;
 					}
 					await downloadStrongs(this.app, this);
@@ -733,7 +733,7 @@ export default class ScriptoriumPlugin extends Plugin {
 
 		this.addCommand({
 			id: "clear-strongs",
-			name: "Clear downloaded strong's data",
+			name: "Clear downloaded Strong's data",
 			callback: () => {
 				void (async () => {
 					await clearDownloadedStrongs(this.app, this);
@@ -809,7 +809,7 @@ export default class ScriptoriumPlugin extends Plugin {
 					}
 					if (mode === "api_bible") {
 						if (!this.settings.apiBibleKey) {
-							new Notice("Set the api.bible key in settings first.");
+							new Notice("Set the API.Bible key in Settings first.");
 							return;
 						}
 						const entries = await this.apiProvider?.listBibles();
@@ -827,7 +827,7 @@ export default class ScriptoriumPlugin extends Plugin {
 						return;
 					}
 					new Notice(
-						"Switch translations only supported for free bible API and api.bible. For vault folder, change the folder path in settings."
+						"Switch translations only supported for Free Bible API and API.Bible. For Vault folder, change the folder path in Settings."
 					);
 				})();
 			},
@@ -857,7 +857,7 @@ export default class ScriptoriumPlugin extends Plugin {
 
 	openParsed(parsed: ReturnType<typeof parseReference>): void {
 		if (!parsed?.segments[0]) return;
-		const seg = parsed.segments[0]!;
+		const seg = parsed.segments[0];
 		const primary = openExternalApp(this.settings.openApp, this.handoffOpts(), seg);
 		if (primary) {
 			openUrlExternally(primary);
@@ -866,7 +866,7 @@ export default class ScriptoriumPlugin extends Plugin {
 		if (this.settings.openApp === "none") return;
 		if (this.settings.openApp === "logos_uri") {
 			new Notice(
-				"Logos: add resource alias + ref prefix in scriptorium settings (see logos ‘copy location’ link), or paste a logosres: URI."
+				"Logos: add resource alias + ref prefix in Scriptorium Settings (see Logos ‘copy location’ link), or paste a logosres: URI."
 			);
 			return;
 		}

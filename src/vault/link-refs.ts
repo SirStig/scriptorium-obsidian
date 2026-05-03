@@ -44,7 +44,7 @@ export function linkRefsInMarkdown(body: string, hubFolder: string, perChapter: 
 		const p = parseReference(trueSlice);
 		if (!p?.segments[0]) continue;
 		out += body.slice(cursor, trueStart);
-		const seg = p.segments[0]!;
+		const seg = p.segments[0];
 		const path = hubRelPath(hubFolder, perChapter, seg);
 		out += `[[${path}|${trueSlice}]]`;
 		cursor = trueStart + trueSlice.length;

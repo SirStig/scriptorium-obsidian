@@ -26,7 +26,7 @@ export function exportToSlides(body: string, opts: SlideExportOptions = {}): str
 	// Pass through frontmatter unchanged.
 	let i = 0;
 	if (!opts.stripFrontmatter && lines[0]?.trim() === "---") {
-		out.push(lines[0]!);
+		out.push(lines[0]);
 		i = 1;
 		while (i < lines.length && lines[i]?.trim() !== "---") {
 			out.push(lines[i]!);

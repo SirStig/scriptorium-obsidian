@@ -252,7 +252,7 @@ export class PassagePaneView extends ItemView {
 		for (const f of allFiles) {
 			if (matches.length >= 20) break;
 			const cache = this.app.metadataCache.getFileCache(f);
-			const fm = cache?.frontmatter as Record<string, unknown> | undefined;
+			const fm = cache?.frontmatter;
 			let hit = false;
 
 			// Check passages_resolved (canonical OSIS keys).

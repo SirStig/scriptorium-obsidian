@@ -154,7 +154,7 @@ export class SelectionBubble {
 
 		btn("OSIS", "Copy OSIS id", "copy", () => {
 			void navigator.clipboard.writeText(toNumericOsisString(parsed.segments));
-			new Notice("Copied osis ID");
+			new Notice("Copied OSIS ID");
 		});
 
 		if (editor) {
@@ -170,7 +170,7 @@ export class SelectionBubble {
 				void (async () => {
 					const r = await this.plugin.pickProvider().getPassage(seg);
 					if (!r?.text) {
-						new Notice("No text from current provider — switch to free bible API in settings.");
+						new Notice("No text from current provider — switch to Free Bible API in Settings.");
 						return;
 					}
 					const lines = r.text.split(/\r?\n/).map((l) => `> ${l}`).join("\n");

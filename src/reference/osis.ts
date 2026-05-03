@@ -130,9 +130,9 @@ function buildDerivedCompactMap(): Record<string, string> {
 function resolveCompactBookToken(tok: string): string | null {
 	const lower = normalizeKey(tok);
 	const derived = buildDerivedCompactMap();
-	if (derived[lower]) return derived[lower]!;
-	if (COMPACT_TO_OSIS[lower]) return COMPACT_TO_OSIS[lower]!;
-	if (COMPACT_EXTRA[lower]) return COMPACT_EXTRA[lower]!;
+	if (derived[lower]) return derived[lower];
+	if (COMPACT_TO_OSIS[lower]) return COMPACT_TO_OSIS[lower];
+	if (COMPACT_EXTRA[lower]) return COMPACT_EXTRA[lower];
 	const b = getBookByOsis(tok.trim());
 	if (b) return b.osis;
 	const b2 = getBookByOsis(tok.charAt(0).toUpperCase() + tok.slice(1).toLowerCase());

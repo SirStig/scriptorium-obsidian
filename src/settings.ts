@@ -167,7 +167,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		const searchWrap = containerEl.createDiv({ cls: "scriptorium-settings-search" });
 		const searchInput = searchWrap.createEl("input", {
-			attr: { type: "search", placeholder: "Search settings…", "aria-label": "Search settings" },
+			attr: { type: "search", placeholder: "Search Settings…", "aria-label": "Search Settings" },
 		});
 
 		const nav = containerEl.createDiv({ cls: "scriptorium-settings-nav" });
@@ -405,7 +405,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		new Setting(host)
 			.setName("Ambient reference suggestions")
-			.setDesc("Surface a 'Linkify reference' suggestion when you've just finished typing something that looks like a reference (e.g. 'John 3:16'). No /ref needed.")
+			.setDesc("Surface a quick-link suggestion when you've just finished typing something that looks like a reference (e.g. 'John 3:16'). No /ref needed.")
 			.addToggle((c) =>
 				c.setValue(this.plugin.settings.ambientSuggest).onChange(async (v) => {
 					this.plugin.settings.ambientSuggest = v;
@@ -499,16 +499,16 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		new Setting(host)
 			.setName("Open passages in")
-			.setDesc("Default destination for 'Open in app' commands.")
+			.setDesc("Default destination for 'open in app' commands.")
 			.addDropdown((d) =>
 				d
 					.addOption("olivetree", "Olive Tree (olivetree://)")
 					.addOption("youversion", "YouVersion (bible.com)")
 					.addOption("accordance", "Accordance (accord://)")
-					.addOption("biblia_web", "biblia.com (web)")
-					.addOption("biblegateway", "BibleGateway (web)")
-					.addOption("blueletter", "Blue Letter Bible (web)")
-					.addOption("stepbible", "STEP Bible (web)")
+					.addOption("biblia_web", "biblia.com (online)")
+					.addOption("biblegateway", "BibleGateway (online)")
+					.addOption("blueletter", "Blue Letter Bible (online)")
+					.addOption("stepbible", "STEP Bible (online)")
 					.addOption("logos_uri", "Logos (logosres:)")
 					.addOption("none", "No automatic URL in commands")
 					.setValue(this.plugin.settings.openApp)
@@ -523,7 +523,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			new Setting(host)
 				.setName("Logos resource alias")
 				.setDesc(
-					"Short id before the semicolon in a logosres: link from Logos (e.g. esv in logosres:esv;ref=…)."
+					"Short ID before the semicolon in a logosres: link from Logos (e.g. `logosres:esv;ref=…`)."
 				)
 				.addText((t) =>
 					t.setValue(this.plugin.settings.logosResourceAlias).onChange(async (v) => {
@@ -535,7 +535,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			new Setting(host)
 				.setName("Logos ref prefix")
 				.setDesc(
-					"Dataset prefix before the passage in ref= (e.g. BibleESV in ref=BibleESV.Joh3.16). Copy one Bible link from Logos and match these two parts."
+					"Dataset prefix before the passage in ref= (e.g. `BibleESV` in `ref=BibleESV.Joh3.16`). Copy one Bible link from Logos and match these two parts."
 				)
 				.addText((t) =>
 					t.setValue(this.plugin.settings.logosRefPrefix).onChange(async (v) => {
@@ -566,8 +566,8 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(host)
-			.setName("YouVersion Bible id")
-			.setDesc("Numeric id from a bible.com URL (e.g. 111 for NIV, 1 for KJV).")
+			.setName("YouVersion Bible ID")
+			.setDesc("Numeric ID from a bible.com URL (e.g. 111 for NIV, 1 for KJV).")
 			.addText((t) =>
 				t.setValue(this.plugin.settings.youVersionBibleId).onChange(async (v) => {
 					this.plugin.settings.youVersionBibleId = v.trim() || "111";
@@ -579,7 +579,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 	private sectionProviders(host: HTMLElement): void {
 		new Setting(host)
 			.setName("Allow network")
-			.setDesc("When off, only vault-based text and offline features run. The status-bar item also toggles this.")
+			.setDesc("When off, only Vault-based text and offline features run. The status-bar item also toggles this.")
 			.addToggle((c) =>
 				c.setValue(this.plugin.settings.allowNetwork).onChange(async (v) => {
 					this.plugin.settings.allowNetwork = v;
@@ -611,7 +611,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 		if (mode === "free_bible") {
 			new Setting(host)
 				.setName("Free Bible translation")
-				.setDesc("All public-domain. WEB is the most readable modern English; KJV is traditional; YLT is hyper-literal. Modern copyrighted translations (ESV, NIV, NASB, LSB) are not in the public domain — use the Vault folder option for those if you have your own copy.")
+				.setDesc("Public-domain modern translations: WEB is the most readable modern English; KJV is traditional; YLT is hyper-literal. Modern copyrighted translations (ESV, NIV, NASB, LSB) are not in the public domain — use the Vault folder option for those if you have your own copy.")
 				.addDropdown((d) =>
 					d
 						.addOption("web", "World English Bible (WEB) — modern, default")
@@ -644,7 +644,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 		if (mode === "vault_folder") {
 			new Setting(host)
 				.setName("Vault Bible folder")
-				.setDesc("Folder containing per-chapter Markdown files (e.g. Scripture/Text/John/3.md).")
+				.setDesc("Folder containing per-chapter Markdown files (e.g. `Scripture/Text/John/3.md`).")
 				.addText((t) =>
 					t.setValue(this.plugin.settings.vaultBibleFolder).onChange(async (v) => {
 						this.plugin.settings.vaultBibleFolder = v.trim();
@@ -736,8 +736,8 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 				);
 
 			new Setting(host)
-				.setName("API.Bible Bible id")
-				.setDesc("Paste a Bible id, or use Browse to pick from your account's catalog.")
+				.setName("API.Bible Bible ID")
+				.setDesc("Paste a Bible ID, or use browse to pick from your account's catalog.")
 				.addText((t) =>
 					t.setValue(this.plugin.settings.apiBibleTranslation).onChange(async (v) => {
 						this.plugin.settings.apiBibleTranslation = v.trim();
@@ -749,7 +749,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 					b.setButtonText("Browse").onClick(() => {
 						void (async () => {
 							if (!this.plugin.settings.apiBibleKey) {
-								new Notice("Set the api.bible key first.");
+								new Notice("Set the API.Bible key first.");
 								return;
 							}
 							const entries = await this.plugin.apiProvider?.listBibles();
@@ -784,7 +784,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 	private sectionHubReading(host: HTMLElement): void {
 		new Setting(host)
 			.setName("Scripture hub folder")
-			.setDesc("Where 'Open or create scripture hub' lands new notes.")
+			.setDesc("Where 'open or create scripture hub' lands new notes.")
 			.addText((t) =>
 				t.setValue(this.plugin.settings.hubFolder).onChange(async (v) => {
 					this.plugin.settings.hubFolder = v.trim() || "Scripture/Hub";
@@ -794,7 +794,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		new Setting(host)
 			.setName("Hub note per chapter")
-			.setDesc("On = one hub per chapter (Scripture/Hub/John/ch-3.md). Off = one hub per verse range.")
+			.setDesc("On = one hub per chapter (`Scripture/Hub/John/ch-3.md`). Off = one hub per verse range.")
 			.addToggle((c) =>
 				c.setValue(this.plugin.settings.hubPerChapter).onChange(async (v) => {
 					this.plugin.settings.hubPerChapter = v;
@@ -833,7 +833,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		new Setting(host)
 			.setName("Rich scripture & Strong's in reading mode")
-			.setDesc("Detects references in paragraphs (can affect Publish; see README).")
+			.setDesc("Detects references in paragraphs (can affect Publish; See README).")
 			.addToggle((c) =>
 				c.setValue(this.plugin.settings.readingProcessRefs).onChange(async (v) => {
 					this.plugin.settings.readingProcessRefs = v;
@@ -842,7 +842,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(host)
-			.setName("Expand [!scripture] / [!bible] / [!passage] callouts")
+			.setName("Expand [!scripture] / [!Bible] / [!passage] callouts")
 			.addToggle((c) =>
 				c.setValue(this.plugin.settings.scriptureCallouts).onChange(async (v) => {
 					this.plugin.settings.scriptureCallouts = v;
@@ -853,7 +853,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 	private sectionPedagogy(host: HTMLElement): void {
 		new Setting(host)
-			.setName("Lectionary CSV path (in vault)")
+			.setName("Lectionary CSV path (in Vault)")
 			.setDesc("Columns: date,ref1,ref2,... ISO dates YYYY-MM-DD.")
 			.addText((t) =>
 				t.setValue(this.plugin.settings.lectionaryCsvPath).onChange(async (v) => {
@@ -913,7 +913,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 					.setCta()
 					.onClick(async () => {
 						if (!this.plugin.settings.allowNetwork) {
-							new Notice("Network disabled — toggle Allow network in settings first.");
+							new Notice("Network disabled — turn it on in Settings first.");
 							return;
 						}
 						await downloadStrongs(this.app, this.plugin);
@@ -964,7 +964,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		new Setting(host)
 			.setName("Interlinear / word-study notes folder")
-			.setDesc("Used by 'Ensure interlinear notes folder exists' command.")
+			.setDesc("Used by 'ensure interlinear notes folder exists' command.")
 			.addText((t) =>
 				t.setValue(this.plugin.settings.interlinearNotesPath).onChange(async (v) => {
 					this.plugin.settings.interlinearNotesPath = v.trim() || "Scripture/Interlinear";
@@ -1017,7 +1017,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		new Setting(host)
 			.setName("Cross-references in passage pane")
-			.setDesc("Show 'See also' parallels (TSK + custom) for the current passage.")
+			.setDesc("Show 'see also' parallels (TSK + custom) for the current passage.")
 			.addToggle((c) =>
 				c.setValue(this.plugin.settings.crossRefsInPane).onChange(async (v) => {
 					this.plugin.settings.crossRefsInPane = v;
@@ -1038,7 +1038,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		new Setting(host)
 			.setName("Backlinks in passage pane")
-			.setDesc("Show notes in your vault that mention the current chapter (via passages_resolved or osis frontmatter).")
+			.setDesc("Show notes in your Vault that mention the current chapter (via passages_resolved or OSIS frontmatter).")
 			.addToggle((c) =>
 				c.setValue(this.plugin.settings.backlinksInPane).onChange(async (v) => {
 					this.plugin.settings.backlinksInPane = v;
@@ -1051,7 +1051,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 		const parserWrap = host.createDiv({ cls: "scriptorium-settings-parser-input" });
 		const parserTest = new Setting(parserWrap)
 			.setName("Test parser")
-			.setDesc("Type any reference here and see what scriptorium parses. Useful for verifying custom aliases.");
+			.setDesc("Type any reference here and see what Scriptorium parses. Useful for verifying custom aliases.");
 		const out = parserTest.controlEl.createDiv({ cls: "scriptorium-settings-parser-out" });
 		parserTest.addText((t) => {
 			t.setPlaceholder("E.g. 1 Cor 13:4-7");
@@ -1073,8 +1073,8 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		// Settings export / import (C.3)
 		new Setting(host)
-			.setName("Export settings")
-			.setDesc("Copy current settings as JSON to clipboard. Useful for sharing alias packs.")
+			.setName("Export Settings")
+			.setDesc("Copy current Settings as JSON to clipboard. Useful for sharing alias packs.")
 			.addButton((b) =>
 				b.setButtonText("Copy").onClick(() => {
 					const json = JSON.stringify(this.plugin.settings, null, 2);
@@ -1084,8 +1084,8 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(host)
-			.setName("Import settings")
-			.setDesc("Paste a settings JSON object. Existing values are merged; missing keys keep current values.")
+			.setName("Import Settings")
+			.setDesc("Paste a Settings JSON object. Existing values are merged; missing keys keep current values.")
 			.addTextArea((ta) => {
 				ta.inputEl.rows = 4;
 				ta.setPlaceholder('{"openApp":"olivetree","includeDeuterocanon":true,...}');

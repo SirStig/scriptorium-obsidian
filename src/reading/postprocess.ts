@@ -30,7 +30,7 @@ function enrichScriptureCallout(host: HTMLElement, plugin: ScriptoriumPlugin): v
 	if (!ref?.segments[0]) return;
 	const box = document.createElement("div");
 	box.className = "scriptorium-callout-enriched";
-	const seg = ref.segments[0]!;
+	const seg = ref.segments[0];
 	void plugin.pickProvider().getPassage(seg).then((r) => {
 		box.textContent = r?.text ?? "(Enable a text provider for preview.)";
 	});
@@ -70,7 +70,7 @@ function wrapTextNode(node: Text, plugin: ScriptoriumPlugin): void {
 				cursor = e.end;
 				continue;
 			}
-			const seg = parsed.segments[0]!;
+			const seg = parsed.segments[0];
 			const span = document.createElement("span");
 			span.className = "scriptorium-ref-preview";
 			span.dataset.ref = e.payload;
@@ -192,8 +192,8 @@ function applyStudioChrome(
 	const file = plugin.app.vault.getAbstractFileByPath(ctx.sourcePath);
 	if (!(file instanceof TFile)) return;
 	const cache = plugin.app.metadataCache.getFileCache(file);
-	const fm = cache?.frontmatter as Record<string, unknown> | undefined;
-	const type = typeof fm?.type === "string" ? (fm.type as string) : "";
+	const fm = cache?.frontmatter;
+	const type = typeof fm?.type === "string" ? fm.type : "";
 	if (!STUDY_TYPE_LABELS[type]) return;
 
 	// Only inject the bar onto the first H1 we see (so it visually replaces the title).
@@ -242,7 +242,7 @@ export function registerReadingModeProcessors(plugin: ScriptoriumPlugin): void {
 		const seg = ref.segments[0]!;
 		void plugin.pickProvider().getPassage(seg).then((r) => {
 			if (r?.text) pre.setText(r.text);
-			else pre.setText("(No text provider — configure settings or add vault bible files.)");
+			else pre.setText("(No text provider — configure Settings or add Vault Bible files.)");
 		});
 	});
 }

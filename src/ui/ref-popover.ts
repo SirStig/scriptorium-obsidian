@@ -113,7 +113,7 @@ function buildPopoverContent(
 					attr.show();
 				}
 			} else {
-				body.textContent = "(No preview text. Switch to free bible API in settings, or pick a provider.)";
+				body.textContent = "(No preview text. Switch to Free Bible API in Settings, or pick a provider.)";
 			}
 		})
 		.catch(() => {
@@ -151,7 +151,7 @@ function buildPopoverContent(
 	});
 	btn("Copy OSIS", "Copy OSIS id", () => {
 		void navigator.clipboard.writeText(toNumericOsisString(parsed.segments));
-		new Notice("Copied osis ID");
+		new Notice("Copied OSIS ID");
 	});
 	btn("⋯", "More actions", (e) => onMoreActions(e));
 
