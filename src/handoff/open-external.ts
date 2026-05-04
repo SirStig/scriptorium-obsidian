@@ -1,14 +1,18 @@
+import { Platform } from "obsidian";
+
 export function openUrlExternally(url: string): void {
-	const req = (window as unknown as { require?: (m: string) => { shell?: { openExternal: (u: string) => Promise<void> } } })
-		.require;
-	try {
-		const shell = req?.("electron")?.shell;
-		if (shell?.openExternal) {
-			void shell.openExternal(url);
-			return;
+	if (Platform.isDesktopApp) {
+		const req = (window as unknown as { require?: (m: string) => { shell?: { openExternal: (u: string) => Promise<void> } } })
+			.require;
+		try {
+			const shell = req?.("electron")?.shell;
+			if (shell?.openExternal) {
+				void shell.openExternal(url);
+				return;
+			}
+		} catch {
+			/* restricted context — fall through to DOM path */
 		}
-	} catch {
-		/* Obsidian mobile or restricted context — fall through */
 	}
 
 	// Mobile / non-electron: a synthetic anchor click hands the URL to the

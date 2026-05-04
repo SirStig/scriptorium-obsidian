@@ -142,6 +142,8 @@ Users can install [BRAT](https://github.com/TfTHacker/obsidian42-brat) and add t
 
 **Bible text licensing.** Scriptorium does not bundle any Bible text. If you use the Vault-folder provider, you're responsible for the rights to whatever you put in that folder. If you use API.Bible, follow their terms. Logos has no public full-library API for third parties — that's why this plugin handles Logos via paste normalization rather than auto-fetched links.
 
+**External URL / app handoffs.** On desktop, Scriptorium uses Electron's `shell.openExternal` to dispatch URLs and custom schemes. On iOS and Android it falls back to a WebView-safe anchor click instead, so custom schemes (`olivetree://`, `logosres:`, `accord://`) reach their target app when that app is installed on the device.
+
 ## License
 
 MIT.
