@@ -116,22 +116,6 @@ npx vitest run tests/parser.test.ts           # single file
 npx vitest run -t "parses verse ranges"       # by name
 ```
 
-## Publish a release
-
-```bash
-npm version patch                # bumps package.json AND syncs manifest.json + versions.json
-git push --follow-tags
-npm run release                  # produces release/<version>/ + release/scriptorium-<version>.zip
-```
-
-On GitHub, create a release whose tag matches the **bare version number** (e.g. `0.2.0`, not `v0.2.0` — Obsidian's catalog requires this). Attach `main.js`, `manifest.json`, and `styles.css` as release assets.
-
-The `version` script in `package.json` runs `scripts/version-bump.mjs` automatically on `npm version`. It updates `manifest.json`, appends to `versions.json`, and stages both for the commit.
-
-### Submitting to the community plugin directory (first time only)
-
-After your first GitHub release, fork [`obsidianmd/obsidian-releases`](https://github.com/obsidianmd/obsidian-releases) and PR an entry into `community-plugins.json`. Subsequent releases are picked up automatically.
-
 ### Beta-testing without the store
 
 Users can install [BRAT](https://github.com/TfTHacker/obsidian42-brat) and add this repo's URL to receive prereleases.
