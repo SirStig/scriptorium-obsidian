@@ -167,7 +167,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		const searchWrap = containerEl.createDiv({ cls: "scriptorium-settings-search" });
 		const searchInput = searchWrap.createEl("input", {
-			attr: { type: "search", placeholder: "Search Settings…", "aria-label": "Search Settings" },
+			attr: { type: "search", placeholder: "Search settings…", "aria-label": "Search settings" },
 		});
 
 		const nav = containerEl.createDiv({ cls: "scriptorium-settings-nav" });
@@ -371,7 +371,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 		new Setting(host)
 			.setName("Reference quick actions")
 			.setDesc(
-				"Choose how previews and shortcuts appear over references. Preview: passage preview when pointing at (desktop) or tapping (mobile) highlighted refs in reading mode. Selection: toolbar when highlighted text parses as a reference. Use one mode to avoid stacking UIs; with both enabled, overlapping the ref with an active selection defers preview until the selection clears, and right-click / long-press hides the floating toolbar and preview."
+				"Choose how previews and shortcuts appear over references. Preview: passage preview when pointing at (desktop) or tapping (mobile) highlighted refs in reading mode. Selection: toolbar when highlighted text parses as a reference. Use one mode to avoid overlapping previews and shortcuts; with both enabled, overlapping the ref with an active selection defers preview until the selection clears, and right-click / long-press hides the floating toolbar and preview."
 			)
 			.addDropdown((dd) =>
 				dd
@@ -428,7 +428,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 		new Setting(host)
 			.setName("Create a study note")
 			.setDesc(
-				"Picks template type (sermon, inductive, word study, lectio divina…), fills frontmatter with passage and metadata, saves under your chosen folder, and opens the new note. You can also run the palette command \"Scriptorium: New study note…\" (bind a shortcut under Settings → Hotkeys)."
+				"Picks template type (sermon, inductive, word study, lectio divina…), fills frontmatter with passage and metadata, saves under your chosen folder, and opens the new note. You can also run the palette command \"Scriptorium: New study note…\" (bind a shortcut under settings → hotkeys)."
 			)
 			.addButton((b) =>
 				b
@@ -493,7 +493,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 		if (isMobileApp()) {
 			const note = host.createDiv({ cls: "scriptorium-settings-help" });
 			note.setText(
-				"On mobile, custom URI schemes (logosres:, accord://, olivetree://) only resolve when the matching app is installed on this device. Web destinations (biblia.com, BibleGateway, YouVersion, Blue Letter Bible, STEP) always work."
+				"On mobile, custom URI schemes (logosres:, accord://, olivetree://) only resolve when the matching app is installed on this device. Web destinations (biblia.com, BibleGateway, YouVersion, Blue Letter Bible, STEP Bible) always work."
 			);
 		}
 
@@ -614,7 +614,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 				.setDesc("Public-domain modern translations: WEB is the most readable modern English; KJV is traditional; YLT is hyper-literal. Modern copyrighted translations (ESV, NIV, NASB, LSB) are not in the public domain — use the Vault folder option for those if you have your own copy.")
 				.addDropdown((d) =>
 					d
-						.addOption("web", "World English Bible (WEB) — modern, default")
+						.addOption("web", "World English Bible (web) — modern, default")
 						.addOption("kjv", "King James Version (KJV, 1611)")
 						.addOption("asv", "American Standard Version (ASV, 1901)")
 						.addOption("bbe", "Bible in Basic English (BBE)")
@@ -833,7 +833,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		new Setting(host)
 			.setName("Rich scripture & Strong's in reading mode")
-			.setDesc("Detects references in paragraphs (can affect Publish; See README).")
+			.setDesc("Detects references in paragraphs (can affect Obsidian Publish; see README).")
 			.addToggle((c) =>
 				c.setValue(this.plugin.settings.readingProcessRefs).onChange(async (v) => {
 					this.plugin.settings.readingProcessRefs = v;
@@ -913,7 +913,7 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 					.setCta()
 					.onClick(async () => {
 						if (!this.plugin.settings.allowNetwork) {
-							new Notice("Network disabled — turn it on in Settings first.");
+							new Notice("Network disabled — turn it on in settings first.");
 							return;
 						}
 						await downloadStrongs(this.app, this.plugin);
@@ -1073,8 +1073,8 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 
 		// Settings export / import (C.3)
 		new Setting(host)
-			.setName("Export Settings")
-			.setDesc("Copy current Settings as JSON to clipboard. Useful for sharing alias packs.")
+			.setName("Export settings")
+			.setDesc("Copy current settings as JSON to clipboard. Useful for sharing alias packs.")
 			.addButton((b) =>
 				b.setButtonText("Copy").onClick(() => {
 					const json = JSON.stringify(this.plugin.settings, null, 2);
@@ -1084,8 +1084,8 @@ export class ScriptoriumSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(host)
-			.setName("Import Settings")
-			.setDesc("Paste a Settings JSON object. Existing values are merged; missing keys keep current values.")
+			.setName("Import settings")
+			.setDesc("Paste a settings JSON object. Existing values are merged; missing keys keep current values.")
 			.addTextArea((ta) => {
 				ta.inputEl.rows = 4;
 				ta.setPlaceholder('{"openApp":"olivetree","includeDeuterocanon":true,...}');

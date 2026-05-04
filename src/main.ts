@@ -561,7 +561,7 @@ export default class ScriptoriumPlugin extends Plugin {
 					const provider = this.pickProvider();
 					const r = await provider.getPassage(seg);
 					if (!r?.text) {
-						new Notice("No text from current provider — configure one in Settings.");
+						new Notice("No text from current provider — configure one in settings.");
 						return;
 					}
 					const lines = r.text.split(/\r?\n/).map((l) => `> ${l}`).join("\n");
@@ -723,7 +723,7 @@ export default class ScriptoriumPlugin extends Plugin {
 			callback: () => {
 				void (async () => {
 					if (!this.settings.allowNetwork) {
-						new Notice("Network disabled — turn it on in Settings first.");
+						new Notice("Network disabled — turn it on in settings first.");
 						return;
 					}
 					await downloadStrongs(this.app, this);
@@ -809,7 +809,7 @@ export default class ScriptoriumPlugin extends Plugin {
 					}
 					if (mode === "api_bible") {
 						if (!this.settings.apiBibleKey) {
-							new Notice("Set the API.Bible key in Settings first.");
+							new Notice("Set the API.Bible key in settings first.");
 							return;
 						}
 						const entries = await this.apiProvider?.listBibles();
@@ -827,7 +827,7 @@ export default class ScriptoriumPlugin extends Plugin {
 						return;
 					}
 					new Notice(
-						"Switch translations only supported for Free Bible API and API.Bible. For Vault folder, change the folder path in Settings."
+						"Switch translations only supported for Free Bible API and API.Bible. For Vault folder, change the folder path in settings."
 					);
 				})();
 			},
@@ -866,7 +866,7 @@ export default class ScriptoriumPlugin extends Plugin {
 		if (this.settings.openApp === "none") return;
 		if (this.settings.openApp === "logos_uri") {
 			new Notice(
-				"Logos: add resource alias + ref prefix in Scriptorium Settings (see Logos ‘copy location’ link), or paste a logosres: URI."
+				"Logos: add resource alias + ref prefix in Scriptorium settings (see Logos ‘copy location’ link), or paste a logosres: URI."
 			);
 			return;
 		}

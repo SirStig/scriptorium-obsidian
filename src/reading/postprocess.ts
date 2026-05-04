@@ -242,7 +242,7 @@ export function registerReadingModeProcessors(plugin: ScriptoriumPlugin): void {
 		const seg = ref.segments[0]!;
 		void plugin.pickProvider().getPassage(seg).then((r) => {
 			if (r?.text) pre.setText(r.text);
-			else pre.setText("(No text provider — configure Settings or add Vault Bible files.)");
+			else pre.setText("(No text provider — configure settings or add Vault Bible files.)");
 		});
 	});
 }

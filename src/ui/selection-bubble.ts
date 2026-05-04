@@ -170,7 +170,7 @@ export class SelectionBubble {
 				void (async () => {
 					const r = await this.plugin.pickProvider().getPassage(seg);
 					if (!r?.text) {
-						new Notice("No text from current provider — switch to Free Bible API in Settings.");
+						new Notice("No text from current provider — switch to Free Bible API in settings.");
 						return;
 					}
 					const lines = r.text.split(/\r?\n/).map((l) => `> ${l}`).join("\n");

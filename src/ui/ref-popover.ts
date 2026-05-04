@@ -113,7 +113,7 @@ function buildPopoverContent(
 					attr.show();
 				}
 			} else {
-				body.textContent = "(No preview text. Switch to Free Bible API in Settings, or pick a provider.)";
+				body.textContent = "(No preview text. Switch to Free Bible API in settings, or pick a provider.)";
 			}
 		})
 		.catch(() => {
